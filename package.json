@@ -1,7 +1,7 @@
 {
   "name": "sofa-launcher",
   "productName": "Sofa Launcher",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Smart-TV-style full-screen launcher for a Linux living-room PC, driven by a SofaBaton remote via Flirc",
   "author": "Ben Weeks",
   "license": "MIT",
