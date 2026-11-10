@@ -260,11 +260,13 @@ fetchArt = true                     # false: never download artwork from Steam (
 [Sober](https://sober.vinegarhq.org/) Flatpak (`org.vinegarhq.Sober`), and as soon
 as Sober is installed, system-wide (`/var/lib/flatpak`) or for the user
 (`~/.local/share/flatpak`), a Roblox tile joins the Games row, before the Steam
-games. Sofa only checks that Sober's files are there (it doesn't run `flatpak` to
-look), on the same schedule as Steam games, so Sober installed while Sofa runs
-shows up the next time Home is shown (re-checked at most every 30 seconds). Hide it in Edit home
-screen (id `roblox`; `[games] hidden` takes Steam app ids only), or with
-`[games] enabled = false` along with the Steam games.
+games. Finding it only checks that Sober's files are there (no `flatpak`
+command), on the same schedule as Steam games, so Sober installed while Sofa
+runs shows up the next time Home is shown (re-checked at most every 30 seconds).
+Like every Flatpak tile, the tile then confirms Sober with `flatpak info`, at
+most once a minute. Hide it in Edit home screen (id `roblox`; `[games] hidden`
+takes Steam app ids only), or with `[games] enabled = false` along with the
+Steam games.
 
 **Your own games**: mark any app with `group = "games"` to put it in the Games
 row instead of Apps (`group = "apps"` moves it back). Configured games come first,
