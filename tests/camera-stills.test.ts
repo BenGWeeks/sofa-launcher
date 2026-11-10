@@ -140,6 +140,26 @@ describe('camera tile stills', () => {
     expect(h.stills.stills).toEqual({ 'camera-a': 'data:image/jpeg;base64,camera-a' });
   });
 
+  it('a reset during a round throws away the old round\'s answers and asks the new cameras at once', async () => {
+    const pending: (() => void)[] = [];
+    const h = harness({ concurrency: 1 });
+    h.ids.mockReturnValue(['camera-old']);
+    h.fetchStill.mockImplementation((id) => new Promise((resolve) => pending.push(() => resolve(`data:image/jpeg;base64,${id}`))));
+    h.stills.setActive(true); await h.flush();
+    expect(h.fetchStill).toHaveBeenLastCalledWith('camera-old');
+    h.ids.mockReturnValue(['camera-new']);
+    h.stills.reset();
+    await h.flush();
+    expect(h.fetchStill).toHaveBeenLastCalledWith('camera-new'); // not held up by the old round
+    pending.shift()!(); await h.advance(0); // the old answer arrives late
+    expect(h.stills.get('camera-old')).toBeUndefined();
+    pending.shift()!(); await h.advance(0);
+    expect(h.stills.stills).toEqual({ 'camera-new': 'data:image/jpeg;base64,camera-new' });
+    expect(h.timers.size).toBe(1); // exactly one next round scheduled
+    await h.advance(STILL_REFRESH_MS);
+    expect(h.fetchStill).toHaveBeenCalledTimes(3);
+  });
+
   it('ignores anything that is not an image data URL', async () => {
     const h = harness();
     h.fetchStill.mockImplementation(async () => 'https://ha.example/api/camera_proxy/camera.a');

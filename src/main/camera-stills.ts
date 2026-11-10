@@ -38,6 +38,8 @@ export class CameraStills {
   private timer: Timer | undefined;
   private round: Promise<void> | null = null;
   private lastRound = -Infinity;
+  /** Bumped by reset(): results of a round started before it are thrown away. */
+  private epoch = 0;
 
   constructor(private opts: CameraStillsOptions) {}
 
@@ -62,15 +64,21 @@ export class CameraStills {
     if (this.round) return this.round;
     this.clear();
     this.lastRound = this.now();
-    this.round = this.fetchAll().finally(() => {
+    const round: Promise<void> = this.fetchAll(this.epoch).finally(() => {
+      // A round superseded by reset() leaves the new round's handle and timer alone.
+      if (this.round !== round) return;
       this.round = null;
       if (this.active) this.schedule(this.opts.refreshMs ?? STILL_REFRESH_MS);
     });
-    return this.round;
+    this.round = round;
+    return round;
   }
 
   /** Stop and forget every still (e.g. the cameras or the Home Assistant address changed). */
   reset(): void {
+    this.epoch++;
+    this.round = null;
+    this.clear();
     for (const id of [...this.values.keys()]) this.drop(id);
     this.failing.clear();
     this.lastRound = -Infinity;
@@ -90,7 +98,7 @@ export class CameraStills {
     if (this.values.delete(id)) this.opts.onChange(id, null);
   }
 
-  private async fetchAll(): Promise<void> {
+  private async fetchAll(epoch: number): Promise<void> {
     let ids: string[];
     try { ids = [...new Set(this.opts.ids())]; } catch { ids = []; }
     // Cameras no longer listed (removed, or Home Assistant not connected) lose their stills.
@@ -100,14 +108,14 @@ export class CameraStills {
     const worker = async () => {
       for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
         // Hidden mid-round: leave the rest for the next time Home shows.
-        if (!this.active) return;
-        await this.fetchOne(id);
+        if (!this.active || epoch !== this.epoch) return;
+        await this.fetchOne(id, epoch);
       }
     };
     await Promise.all(Array.from({ length: Math.max(1, Math.min(this.opts.concurrency ?? STILL_CONCURRENCY, queue.length)) }, worker));
   }
 
-  private async fetchOne(id: string): Promise<void> {
+  private async fetchOne(id: string, epoch: number): Promise<void> {
     let value: string | null = null;
     let reason = 'no image';
     let timer: Timer | undefined;
@@ -123,6 +131,7 @@ export class CameraStills {
     } finally {
       if (timer !== undefined) (this.opts.clearTimer ?? ((t) => clearTimeout(t as NodeJS.Timeout)))(timer);
     }
+    if (epoch !== this.epoch) return; // the cameras changed meanwhile: this answer is stale
     if (value) {
       this.failing.delete(id);
       if (this.values.get(id) !== value) { this.values.set(id, value); this.opts.onChange(id, value); }

@@ -348,19 +348,27 @@ function gameArt(appId: string): string | null {
       if (value) send('game-art', { appId, value });
     });
   }
-  const file = choice.file;
-  if (!file) return null;
+  // The chosen picture, else the other one (a damaged download must not hide Steam's own copy).
+  for (const file of new Set([choice.file, game.art])) {
+    const value = file ? artDataUrl(file) : null;
+    if (value) return value;
+  }
+  return null;
+}
+
+/** A picture file as a small JPEG data URL, or null if it can't be read (cached until the file changes). */
+function artDataUrl(file: string): string | null {
   let key: string;
   try {
     const stat = statSync(file);
     if (!stat.isFile() || stat.size > 20_000_000) return null;
     key = `${file}:${stat.mtimeMs}:${stat.size}`;
   } catch { return null; }
-  const cached = gameArtCache.get(appId);
+  const cached = gameArtCache.get(file);
   if (cached?.key === key) return cached.value;
   const image = nativeImage.createFromPath(file);
   const value = image.isEmpty() ? null : `data:image/jpeg;base64,${image.resize({ width: 460, quality: 'good' }).toJPEG(80).toString('base64')}`;
-  gameArtCache.set(appId, { key, value });
+  gameArtCache.set(file, { key, value });
   return value;
 }
 
@@ -382,8 +390,13 @@ function syncCameraStills(): void {
 }
 
 function configureCameras(): void {
+  configureCameraInputs();
+  // After cameraInputs reflects the new config, so the fresh round asks the new cameras and origin.
   const stillsKey = JSON.stringify([config.homeAssistantUrl ?? null, config.apps.filter((a) => a.type === 'camera').map((a) => [a.id, a.entity])]);
   if (stillsKey !== cameraStillsKey) { cameraStillsKey = stillsKey; cameraStills.reset(); }
+}
+
+function configureCameraInputs(): void {
   if (DEMO) return;
   const definitions = config.apps.filter(a => a.type === 'camera').map(a => ({id:a.id,name:a.name,entity:a.entity!,wmClass:a.wmClass}));
   const origin = config.homeAssistantUrl ? new URL(config.homeAssistantUrl).origin : null;
