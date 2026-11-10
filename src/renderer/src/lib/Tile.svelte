@@ -21,7 +21,7 @@
     app: TileState; index?: number; focused?: boolean; onclick?: () => void;
     /** Artwork only (no number, status dot, label or button), for use inside another control. */
     bare?: boolean;
-    /** A game's artwork (data URL), shown whole over a blurred copy of itself. */
+    /** A game's artwork or a camera's latest still (data URL), filling the tile. */
     art?: string;
   } = $props();
   /** Games without artwork get a quiet gradient in a colour of their own. */
@@ -50,7 +50,9 @@
     {#if image}
       <img class="photo" src={image} alt="" />
     {:else if app.group === 'games' && art}
-      <img class="art-backdrop" src={art} alt="" /><img class="art" src={art} alt={app.name} />
+      <img class="art" src={art} alt={app.name} />
+    {:else if app.type === 'camera' && art}
+      <img class="art still" src={art} alt="" />
     {:else if symbol}
       <span class="service-logo"><img src={symbol} alt="" /><span>{app.name}</span></span>
     {:else if app.type === 'camera'}
@@ -115,9 +117,11 @@
   .brand-roblox { background:#fff; color:#121215; }
   .game-name { padding:0 8%; text-align:center; line-height:1.15; font-size:calc(1.6rem * var(--ts)); display:-webkit-box; -webkit-line-clamp:3; line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .brand-roblox .game-name { font-size:calc(2.2rem * var(--ts)); font-weight:900; letter-spacing:.02em; text-transform:uppercase; }
-  /* Steam headers are wider than a tile: show the whole image, over a blurred, dimmed copy. */
-  .art-backdrop { position:absolute; inset:-10%; width:120%; height:120%; object-fit:cover; filter:blur(calc(1.2rem * var(--ts))) brightness(.55); }
-  .art { position:relative; width:100%; height:100%; object-fit:contain; }
+  /* Game headers (wider than a tile) and camera stills fill the whole tile, centred: no bands. */
+  .art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 50%; }
+  /* Keep the dot readable over a bright still. */
+  .tile:has(.still) .dot { box-shadow:0 0 0 calc(0.16rem * var(--ts)) rgba(0, 0, 0, 0.55); }
+  .tile:has(.still) .dot.on { box-shadow:0 0 0 calc(0.16rem * var(--ts)) rgba(0, 0, 0, 0.55), 0 0 calc(0.6rem * var(--ts)) var(--ok); }
   .camera { width:4rem; height:4rem; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linejoin:round; }
   .service-logo { display:flex; align-items:center; justify-content:center; gap:calc(.65rem * var(--ts)); width:88%; }
   .service-logo img { width:calc(3.4rem * var(--ts)); height:calc(3.4rem * var(--ts)); object-fit:contain; flex-shrink:0; }

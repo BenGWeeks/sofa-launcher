@@ -1,6 +1,7 @@
 /**
- * Header artwork for Steam games that have none cached locally, downloaded once from Steam's
- * public image server into the launcher's own data directory (`<dataDir>/game-art/<appid>.jpg`).
+ * Steam games' official store header artwork, downloaded once from Steam's public image server
+ * into the launcher's own data directory (`<dataDir>/game-art/<appid>.jpg`). Preferred over
+ * Steam's local library cache, which can hold an event or collaboration banner instead.
  * Only the game's public Steam number is sent. Failures are remembered (a `<appid>.failed`
  * marker) so a game is retried at most once a day, across restarts too.
  */
@@ -63,6 +64,18 @@ async function readImage(res: Response, max: number): Promise<Uint8Array | null>
   let at = 0;
   for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
   return bytes;
+}
+
+/**
+ * Which picture a game's tile shows, and whether to download the official header first.
+ * Steam's local library cache (`appcache/librarycache/<appid>/<hash>/`) can hold an event or
+ * collaboration banner rather than the game's own header, so with `[games] fetchArt` on the
+ * downloaded store header wins; the local file is shown only until it arrives (or if it can't
+ * be fetched). With fetchArt off nothing is downloaded: the local file, else an earlier download.
+ */
+export function chooseGameArt(opts: { local?: string; downloaded?: string; fetchEnabled: boolean }): { file?: string; fetch: boolean } {
+  if (opts.fetchEnabled) return { file: opts.downloaded ?? opts.local, fetch: !opts.downloaded };
+  return { file: opts.local ?? opts.downloaded, fetch: false };
 }
 
 export class GameArtFetcher {

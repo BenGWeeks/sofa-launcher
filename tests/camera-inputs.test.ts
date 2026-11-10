@@ -31,7 +31,12 @@ vi.mock('electron', async () => {
   const handlers = new Map();
   return {
     BrowserWindow: Window,
-    nativeImage: { createFromBuffer: (bytes: Buffer) => ({ isEmpty: () => !bytes.length, toJPEG: () => bytes }) },
+    nativeImage: { createFromBuffer: (bytes: Buffer) => {
+      // Test images: [width high byte, width low byte, ...]; resize records the requested width.
+      const image = (data: Buffer, width: number): any => ({ isEmpty: () => !data.length, toJPEG: () => data, getSize: () => ({ width, height: Math.round(width * 9 / 16) }),
+        resize: ({ width: w }: { width: number }) => image(Buffer.from([w >> 8, w & 255]), w) });
+      return image(bytes, bytes.length >= 2 ? (bytes[0]! << 8) + bytes[1]! : 0);
+    } },
     safeStorage: { isEncryptionAvailable: () => false },
     ipcMain: { handle: (name: string, callback: unknown) => handlers.set(name, callback), removeHandler: (name: string) => handlers.delete(name), handlers },
   };
@@ -119,6 +124,21 @@ describe('managed camera windows', () => {
     await expect(snapshot({ ...owner, senderFrame: { url: 'https://evil.example' } }, 0)).rejects.toThrow('Untrusted');
     request.mockRejectedValueOnce(new Error('network failure'));
     expect(await snapshot(owner, 0)).toBeNull();
+  });
+  it('gives home-screen tiles a small still only once Home Assistant is connected', async () => {
+    const inputs = fixture();
+    expect(inputs.stillIds()).toEqual([]); // no token: nothing may be requested
+    vi.spyOn(inputs.service, 'connected', 'get').mockReturnValue(true);
+    expect(inputs.stillIds()).toEqual(['camera-front', 'camera-barn']); // never the All cameras grid
+    const request = vi.spyOn(inputs.service, 'snapshot').mockResolvedValue(new Uint8Array([0x07, 0x80, 1, 2])); // 1920 wide
+    expect(await inputs.tileStill('camera-front')).toBe(`data:image/jpeg;base64,${Buffer.from([0x01, 0xe0]).toString('base64')}`); // resized to 480
+    expect(request).toHaveBeenCalledExactlyOnceWith('camera.front', { width: 480, timeoutMs: 8000 });
+    request.mockResolvedValueOnce(new Uint8Array([0x01, 0x40, 9])); // already 320 wide: kept as is
+    expect(await inputs.tileStill('camera-barn')).toBe(`data:image/jpeg;base64,${Buffer.from([0x01, 0x40, 9]).toString('base64')}`);
+    await expect(inputs.tileStill('all-cameras')).rejects.toThrow('Unknown camera');
+    await expect(inputs.tileStill('camera-missing')).rejects.toThrow('Unknown camera');
+    request.mockResolvedValueOnce(new Uint8Array());
+    await expect(inputs.tileStill('camera-front')).rejects.toThrow('invalid image');
   });
   it('keeps camera audio separate even though both windows belong to Electron', async () => {
     const inputs = fixture();

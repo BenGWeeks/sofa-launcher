@@ -95,6 +95,17 @@ describe('shared Home Assistant camera connection', () => {
     await expect(service.snapshot('camera.front')).rejects.toThrow('invalid image');
     await expect(service.snapshot('camera.front/../../states')).rejects.toThrow('Invalid camera');
   });
+  it('asks Home Assistant for a smaller still when a width is given, and validates it', async () => {
+    const f = fixture(); const service = new CameraService(f.options); await service.connect(token);
+    f.request.mockResolvedValueOnce(new Response(new Uint8Array([0xff, 0xd8, 0xff]), { headers: { 'content-type': 'image/jpeg' } }));
+    expect([...await service.snapshot('camera.front', { width: 480, timeoutMs: 8000 })]).toEqual([0xff, 0xd8, 0xff]);
+    const [url, init] = f.request.mock.calls.at(-1)!;
+    expect(String(url)).toBe('https://ha.example/api/camera_proxy/camera.front?width=480');
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    const calls = f.request.mock.calls.length;
+    for (const width of [0, -1, 1.5, 99999, Number.NaN]) await expect(service.snapshot('camera.front', { width })).rejects.toThrow('Invalid image width');
+    expect(f.request.mock.calls.length).toBe(calls);
+  });
   it('caps snapshot downloads while streaming, even with a missing or false length', async () => {
     for (const length of [undefined, '1', String(17 * 1024 * 1024)]) {
       const f = fixture(); const service = new CameraService(f.options); await service.connect(token);

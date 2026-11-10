@@ -145,6 +145,10 @@ export interface SofaApi {
   onPanel(cb: (state: PanelState) => void): () => void;
   /** A small recent still of a camera input (data URL), or null if unavailable. */
   cameraThumbnail(appId: string): Promise<string | null>;
+  /** The home screen's camera tiles' latest stills (data URLs) by tile id; cameras without one are absent. */
+  cameraStills(): Promise<Record<string, string>>;
+  /** A camera tile's still changed (null: it has none now, so the tile shows its icon). */
+  onCameraStill(cb: (still: { appId: string; value: string | null }) => void): () => void;
   /** A game's artwork as a small JPEG data URL, or null if it has none (yet: see onGameArt). */
   gameArt(appId: string): Promise<string | null>;
   /** Artwork that arrived later (downloaded from Steam). */

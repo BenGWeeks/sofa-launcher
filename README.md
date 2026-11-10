@@ -225,20 +225,23 @@ user, read from their own Steam folder (`~/.local/share/Steam`,
 Steam library listed in its `libraryfolders.vdf`. Libraries on a drive that is
 not mounted are skipped. Most recently played come first. Each Linux account
 has its own Steam folder and its own `config.toml`, so each account sees its
-own games with no extra setup. The tile shows Steam's cached header artwork.
-The list is re-read when the config changes and when Home is shown (at most
-every 30 seconds).
+own games with no extra setup. The tile shows the game's header picture,
+filling the tile. The list is re-read when the config changes and when Home is
+shown (at most every 30 seconds).
 
-When Steam has no artwork cached for a game, Sofa downloads its public header
+Steam's own artwork cache can hold an event or collaboration banner instead of
+the game's normal picture, so Sofa downloads each game's official store header
 picture from Steam's image server (`shared.cloudflare.steamstatic.com`, then
 `cdn.cloudflare.steamstatic.com`) into `~/.local/share/sofa-launcher/game-art/`
-and uses that file from then on. The tile shows the game's name until the
-picture arrives. This is the one case where drawing a tile contacts an outside
+and uses that file from then on. Until it arrives (or if it can't be fetched)
+the tile shows Steam's cached artwork, or the game's name when there is none.
+This is the one case where drawing a tile contacts an outside
 service, and all it sends is the game's public Steam number (in the address;
 no cookies or account details). Only JPEG or PNG pictures up to 2 MB are
 accepted, each request gives up after five seconds, and a game whose picture
 couldn't be fetched is retried at most once a day. Switch it off with
-`fetchArt = false`; then no requests are made at all.
+`fetchArt = false`; then no requests are made at all and the tile shows
+Steam's cached artwork.
 
 Steam's own tools (Proton, the Steam Linux Runtimes, Steamworks redistributables)
 are left out. Other non-game entries, such as soundtracks, VR utilities or
@@ -249,7 +252,7 @@ Wallpaper Engine, cannot be told apart reliably: hide them by Steam app id
 [games]
 enabled = true                      # false: Steam games start hidden (Edit home screen can show some)
 hidden = ["431960", "468020"]       # Steam app ids to leave out
-fetchArt = true                     # false: never download missing artwork from Steam
+fetchArt = true                     # false: never download artwork from Steam (use Steam's cached copy)
 ```
 
 **Your own games**: mark any app with `group = "games"` to put it in the Games
@@ -382,6 +385,14 @@ while live video connects, then fade to live video on the first decoded frame.
 A failed still request leaves the usual connecting/error display. Credentials stay
 in the main process and authenticated request headers; snapshots reach the viewer
 as JPEG data URLs. Camera signaling sockets remain scoped to individual sessions.
+
+Camera tiles on the home screen show each camera's latest still through the same
+proxy (a small, about 480 px wide JPEG), fetched when Home appears and about once
+a minute while it stays in front, a few cameras at a time; nothing is requested
+while an app is in front or before Home Assistant is connected. Cameras with a
+still come first in the Cameras row (after **All cameras**), in config order; a
+camera whose still can't be fetched keeps its icon. The row only reorders while
+the remote isn't on it, so the selected tile never jumps.
 
 ## Browser configuration
 
