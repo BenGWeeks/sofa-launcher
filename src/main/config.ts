@@ -330,7 +330,7 @@ catalogue = "tidal"
 # [games]
 # enabled = true          # false hides Steam games
 # hidden = ["552990"]     # Steam app ids to leave out
-# fetchArt = true         # download missing game pictures from Steam (sends only the game's Steam number)
+# fetchArt = true         # download each game's official picture from Steam (sends only the game's Steam number)
 
 # The Docker tile shows container status from a read-only JSON file (see README):
 #   [[apps]]

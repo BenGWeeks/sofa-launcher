@@ -23,9 +23,10 @@ import { parseOpenCommand, searchUrl, validateOpenCommand, type OpenCommand, typ
 import { ConfigError, parseConfig, SEED_CONFIG, type Config, type ResolvedApp } from './config';
 import { validateBackground, validateTheme, validateBrowser, writeBackground, writeTheme, writeBrowser } from './config-writer';
 import { Debouncer } from './debounce';
-import { DEMO_STEAM_GAMES, demoArtBitmap, isDemoMode, screenshotConfig, steamGamesRow } from './demo';
+import { DEMO_STEAM_GAMES, demoArtBitmap, demoCameraHasStill, demoCameraStillBitmap, isDemoMode, screenshotConfig, steamGamesRow } from './demo';
+import { CameraStills } from './camera-stills';
 import { findSteamGames, steamBinary, steamGameApps } from './steam';
-import { GameArtFetcher } from './game-art';
+import { chooseGameArt, GameArtFetcher } from './game-art';
 import { homeCandidates, resolveHome, type HomeCandidate } from './home-items';
 import { HOME_FILE, NO_CHOICES, isHomeId, isShown, readHomeVisibility, withChoice, writeHomeChoice, type HomeVisibility } from './home-visibility';
 import { DEFAULT_BACKGROUND } from '@shared/backgrounds';
@@ -109,8 +110,23 @@ const gameArtCache = new Map<string, { key: string; value: string | null }>();
 /** Shown/hidden choices from home.json, and everything Edit home screen can list. */
 let homeChoices: HomeVisibility = NO_CHOICES;
 let homeList: HomeCandidate[] = [];
-/** Steam header art for games without a local copy ([games] fetchArt). Never used in demo mode. */
+/** Steam's official header art ([games] fetchArt), preferred over the local cache. Never used in demo mode. */
 const artFetcher = new GameArtFetcher({ dir: join(dataDir, 'game-art'), enabled: () => config.games.fetchArt && !DEMO });
+/**
+ * Latest stills on the home screen's camera tiles, refreshed about once a minute while Home is in
+ * front (see syncCameraStills). Nothing is requested without a connected Home Assistant; demo
+ * mode draws placeholders and never contacts a server.
+ */
+const cameraStills = new CameraStills({
+  ids: () => DEMO
+    ? config.apps.filter((a) => a.type === 'camera' && a.entity !== 'all' && demoCameraHasStill(a.id)).map((a) => a.id)
+    : cameraInputs?.stillIds() ?? [],
+  fetchStill: (id) => DEMO ? Promise.resolve(demoCameraStill(id)) : cameraInputs ? cameraInputs.tileStill(id) : Promise.resolve(null),
+  onChange: (appId, value) => { if (win && !win.isDestroyed()) win.webContents.send('camera-still', { appId, value }); },
+  log: (message) => console.log(message),
+});
+/** The camera definitions the stills were fetched for; a change starts them afresh. */
+let cameraStillsKey = '';
 
 const wm: WindowManager = DEMO ? demoWindowManager() : new XdotoolWindowManager();
 const media: MediaController = DEMO ? new FakeMediaController() : new GdbusMediaController(wm);
@@ -319,31 +335,68 @@ function gameArt(appId: string): string | null {
     return value;
   }
   const steamId = /^steam-(\d{1,10})$/.exec(appId)?.[1];
-  const file = game.art ?? (steamId && !DEMO ? artFetcher.cached(steamId) : undefined);
-  if (!file) {
-    // No local art: fetch it in the background; the tile shows the name until it arrives.
-    if (steamId && !DEMO) void artFetcher.fetch(steamId).then((saved) => {
+  const choice = chooseGameArt({
+    local: game.art,
+    downloaded: steamId && !DEMO ? artFetcher.cached(steamId) : undefined,
+    fetchEnabled: !!steamId && config.games.fetchArt && !DEMO,
+  });
+  if (choice.fetch && steamId) {
+    // The official header replaces Steam's local copy (or the name) once it arrives.
+    void artFetcher.fetch(steamId).then((saved) => {
       if (!saved) return;
       const value = gameArt(appId);
       if (value) send('game-art', { appId, value });
     });
-    return null;
   }
+  // The chosen picture, else the other one (a damaged download must not hide Steam's own copy).
+  for (const file of new Set([choice.file, game.art])) {
+    const value = file ? artDataUrl(file) : null;
+    if (value) return value;
+  }
+  return null;
+}
+
+/** A picture file as a small JPEG data URL, or null if it can't be read (cached until the file changes). */
+function artDataUrl(file: string): string | null {
   let key: string;
   try {
     const stat = statSync(file);
     if (!stat.isFile() || stat.size > 20_000_000) return null;
     key = `${file}:${stat.mtimeMs}:${stat.size}`;
   } catch { return null; }
-  const cached = gameArtCache.get(appId);
+  const cached = gameArtCache.get(file);
   if (cached?.key === key) return cached.value;
   const image = nativeImage.createFromPath(file);
   const value = image.isEmpty() ? null : `data:image/jpeg;base64,${image.resize({ width: 460, quality: 'good' }).toJPEG(80).toString('base64')}`;
-  gameArtCache.set(appId, { key, value });
+  gameArtCache.set(file, { key, value });
   return value;
 }
 
+/** A demo camera's placeholder still (data URL), or null for the demo cameras shown without one. */
+const demoStills = new Map<string, string | null>();
+function demoCameraStill(appId: string): string | null {
+  if (!DEMO) return null;
+  if (!demoStills.has(appId)) {
+    const index = Number(/^camera-demo-(\d{1,2})$/.exec(appId)?.[1] ?? NaN);
+    const image = demoCameraHasStill(appId) ? nativeImage.createFromBitmap(demoCameraStillBitmap(index), { width: 480, height: 270 }) : null;
+    demoStills.set(appId, image ? `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}` : null);
+  }
+  return demoStills.get(appId) ?? null;
+}
+
+/** Stills only while Home is in front (demo: while its window is shown); stops when hidden. */
+function syncCameraStills(): void {
+  cameraStills.setActive(DEMO ? !!win && !win.isDestroyed() && win.isVisible() : launcherInFront());
+}
+
 function configureCameras(): void {
+  configureCameraInputs();
+  // After cameraInputs reflects the new config, so the fresh round asks the new cameras and origin.
+  const stillsKey = JSON.stringify([config.homeAssistantUrl ?? null, config.apps.filter((a) => a.type === 'camera').map((a) => [a.id, a.entity])]);
+  if (stillsKey !== cameraStillsKey) { cameraStillsKey = stillsKey; cameraStills.reset(); }
+}
+
+function configureCameraInputs(): void {
   if (DEMO) return;
   const definitions = config.apps.filter(a => a.type === 'camera').map(a => ({id:a.id,name:a.name,entity:a.entity!,wmClass:a.wmClass}));
   const origin = config.homeAssistantUrl ? new URL(config.homeAssistantUrl).origin : null;
@@ -464,6 +517,7 @@ function createWindow(opts: { show: boolean; hash?: string }): BrowserWindow {
   w.on('focus', () => {
     if (Date.now() - steamScannedAt > 30_000) scanSteamGames();
     void pushApps();
+    syncCameraStills();
   });
   // Hidden means "not on screen": leave any sub-screen (and release the button test's key grab).
   w.on('hide', () => {
@@ -473,7 +527,7 @@ function createWindow(opts: { show: boolean; hash?: string }): BrowserWindow {
   });
   // The button test only makes sense while this window has the keyboard. If anything else
   // comes to the front, or the renderer dies / reloads, the remote must work again at once.
-  w.on('blur', () => leaveButtonTest());
+  w.on('blur', () => { leaveButtonTest(); syncCameraStills(); });
   w.webContents.on('render-process-gone', () => leaveButtonTest());
   w.webContents.on('did-start-loading', () => leaveButtonTest());
   load(w, opts.hash ?? 'home');
@@ -1154,9 +1208,11 @@ function registerIpc(): void {
   });
   handle('panel:dismiss', () => hidePanel(true));
   handle('launcher:camera-thumbnail', async (_event, appId) => {
-    if (typeof appId !== 'string' || apps.get(appId)?.type !== 'camera' || DEMO) return null;
-    return (await cameraInputs?.thumbnail(appId)) ?? null;
+    if (typeof appId !== 'string' || apps.get(appId)?.type !== 'camera') return null;
+    if (DEMO) return demoCameraStill(appId);
+    return cameraStills.get(appId) ?? (await cameraInputs?.thumbnail(appId)) ?? null;
   });
+  handle('launcher:camera-stills', () => cameraStills.stills);
   // Read-only: the view re-reads at most every 5 s (on open, `fresh` reads now).
   handle('containers:snapshot', (_event, fresh) => containerSource?.refresh(fresh === true ? 0 : 5000) ?? NOT_CONFIGURED);
   handle('launcher:game-art', (_event, appId) => (typeof appId === 'string' ? gameArt(appId) : null));
@@ -1447,6 +1503,8 @@ if (flag('setup-user') || flag('undo-user-setup')) {
     win = createWindow({ show: true, hash: demoHash() });
     win.on('show', syncCameraOverlays);
     win.on('hide', syncCameraOverlays);
+    win.on('show', syncCameraStills);
+    win.on('hide', syncCameraStills);
     if (!SCREENSHOT) {
       toastWin = createOverlay('toast');
       toastWin.on('show', syncCameraOverlays);
@@ -1467,6 +1525,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
       });
     }
     win.webContents.once('did-finish-load', () => {
+      syncCameraStills();
       if (configError) toast(configError);
       registerButtons();
     });
@@ -1499,6 +1558,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
     setInterval(() => {
       // Only while the launcher is in front: no xdotool churn during video.
       if (launcherInFront()) void pushApps();
+      syncCameraStills();
       void pip.check();
     }, 3000);
     if (!DEMO) watchdog.start();

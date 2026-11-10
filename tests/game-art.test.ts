@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GameArtFetcher, steamAppNumber, steamArtUrls, ART_RETRY_MS } from '../src/main/game-art';
+import { chooseGameArt, GameArtFetcher, steamAppNumber, steamArtUrls, ART_RETRY_MS } from '../src/main/game-art';
 
 const dirs: string[] = [];
 const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'sofa-art-')); dirs.push(d); return join(d, 'game-art'); };
@@ -101,5 +101,26 @@ describe('downloading missing artwork', () => {
     const art = new GameArtFetcher({ dir: tmp(), enabled: () => false, fetch });
     expect(await art.fetch('1692250')).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('which picture a game tile shows', () => {
+  const local = '/steam/appcache/librarycache/552990/abc123/library_header.jpg';
+  const downloaded = '/data/game-art/552990.jpg';
+
+  it('prefers the downloaded official header over Steam\'s local cache (which may be an event banner)', () => {
+    expect(chooseGameArt({ local, downloaded, fetchEnabled: true })).toEqual({ file: downloaded, fetch: false });
+  });
+
+  it('shows the local picture until the download exists, and asks for the download', () => {
+    expect(chooseGameArt({ local, fetchEnabled: true })).toEqual({ file: local, fetch: true });
+    expect(chooseGameArt({ fetchEnabled: true })).toEqual({ file: undefined, fetch: true });
+  });
+
+  it('with fetchArt off, never downloads and shows the local picture first', () => {
+    expect(chooseGameArt({ local, downloaded, fetchEnabled: false })).toEqual({ file: local, fetch: false });
+    expect(chooseGameArt({ local, fetchEnabled: false })).toEqual({ file: local, fetch: false });
+    expect(chooseGameArt({ downloaded, fetchEnabled: false })).toEqual({ file: downloaded, fetch: false });
+    expect(chooseGameArt({ fetchEnabled: false })).toEqual({ file: undefined, fetch: false });
   });
 });

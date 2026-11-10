@@ -75,3 +75,58 @@ export function demoArtBitmap(hue: number, width = 460, height = 215): Buffer {
   }
   return buf;
 }
+
+/**
+ * Demo cameras with a still (`camera-demo-<n>`): most do, every third one from the second has
+ * none, so screenshots show working cameras first and the rest keeping their icon.
+ */
+export function demoCameraHasStill(appId: string): boolean {
+  const index = /^camera-demo-(\d{1,2})$/.exec(appId)?.[1];
+  return index !== undefined && Number(index) % 3 !== 1;
+}
+
+/**
+ * A placeholder camera still as raw BGRA pixels (for nativeImage.createFromBitmap): a made-up
+ * scene (sky, a building's outline, a lit window, the ground) in the muted colours of a security
+ * camera, some by day and some by night-vision green. Never a real picture.
+ */
+export function demoCameraStillBitmap(index: number, width = 480, height = 270): Buffer {
+  const buf = Buffer.alloc(width * height * 4);
+  const night = index % 4 === 3;
+  // Deterministic pseudo-random per camera, so a screenshot is the same every time.
+  let seed = (index + 1) * 2654435761 >>> 0;
+  const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const horizon = height * (0.45 + random() * 0.15);
+  const roofLeft = width * (0.1 + random() * 0.3), roofRight = roofLeft + width * (0.3 + random() * 0.25);
+  const wall = horizon - height * (0.2 + random() * 0.12), peak = wall - height * (0.08 + random() * 0.1);
+  const windowX = roofLeft + (roofRight - roofLeft) * (0.25 + random() * 0.4), windowY = wall + (horizon - wall) * 0.3;
+  const tint = index * 47 % 360;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r: number, g: number, b: number;
+      const mid = (roofLeft + roofRight) / 2;
+      const roofY = peak + (wall - peak) * Math.min(1, Math.abs(x - mid) / ((roofRight - roofLeft) / 2));
+      const inHouse = x >= roofLeft && x <= roofRight && y >= roofY && y < horizon;
+      if (y < horizon) {
+        const t = y / horizon;
+        [r, g, b] = [90 + 60 * t, 120 + 50 * t, 150 + 30 * t];
+      } else {
+        const t = (y - horizon) / (height - horizon);
+        const stripe = Math.sin((x - width / 2) / Math.max(8, y - horizon + 8) * 6) > 0.9 ? 10 : 0;
+        [r, g, b] = [70 - 30 * t + stripe, 82 - 30 * t + stripe, 62 - 25 * t + stripe];
+      }
+      if (inHouse) {
+        const lit = Math.abs(x - windowX) < 14 && Math.abs(y - windowY) < 10;
+        [r, g, b] = lit ? [230, 200, 130] : [55 + (tint % 30), 50, 48];
+      }
+      const noise = (random() - 0.5) * 14;
+      const dx = x / width - 0.5, dy = y / height - 0.5;
+      const vignette = 1 - (dx * dx + dy * dy) * 1.1;
+      if (night) { const l = (r * 0.3 + g * 0.59 + b * 0.11) * 0.8; [r, g, b] = [l * 0.55, l * 1.05, l * 0.6]; }
+      const i = (y * width + x) * 4;
+      const clamp = (v: number) => Math.max(0, Math.min(255, Math.round((v + noise) * vignette)));
+      buf[i] = clamp(b); buf[i + 1] = clamp(g); buf[i + 2] = clamp(r); buf[i + 3] = 255;
+    }
+  }
+  return buf;
+}

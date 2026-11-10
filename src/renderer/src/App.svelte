@@ -12,6 +12,7 @@
   import ContainersView from './lib/ContainersView.svelte';
   import { createClock } from './lib/clock.svelte';
   import { BACK_KEYS, moveFocus, moveRowFocus, moveWrappedFocus } from './lib/nav';
+  import { keepOrder, orderCameras } from './lib/camera-order';
 
   /** `demo` (from the URL hash) opens a screen with fake data for the docs screenshots. */
   let { demo = null }: { demo?: string | null } = $props();
@@ -25,10 +26,19 @@
   let version = $state('');
   let apps = $state<TileState[]>([]);
   type RowId = 'apps' | 'games' | 'cameras';
+  let focusRow = $state<RowId>('apps');
   const isLaunchApp = (app: TileState) => app.type !== 'camera' && app.group !== 'games';
   const launchApps = $derived(apps.filter(isLaunchApp));
   const gameApps = $derived(apps.filter(app => app.group === 'games'));
-  const cameraApps = $derived(apps.filter(app => app.type === 'camera'));
+  /** Latest camera stills (data URLs) by tile id, kept fresh by main while Home is in front. */
+  let cameraStills = $state<Record<string, string>>({});
+  const cameraTiles = $derived(apps.filter(app => app.type === 'camera'));
+  /** The Cameras row as last drawn: while focus is on (or returns to) that row its order holds still. */
+  let shownCameraOrder: string[] = [];
+  const cameraApps = $derived(focusRow === 'cameras'
+    ? keepOrder(cameraTiles, shownCameraOrder)
+    : orderCameras(cameraTiles, id => !!cameraStills[id]));
+  $effect(() => { shownCameraOrder = cameraApps.map(app => app.id); });
   /** Apps always; Games and Cameras only when there are some. One row: the wrapped grid. */
   const rows = $derived([
     { id: 'apps' as RowId, label: 'Apps', cls: 'app-row', items: launchApps },
@@ -39,7 +49,6 @@
   /** Games but no cameras: the Apps grid still wraps (up to two rows of six), with the Games row below.
       More apps than that use the one-line rows instead, so nothing ever scrolls vertically. */
   const wrapped = $derived(!cameraApps.length && gameApps.length > 0 && launchApps.length <= COLS * 2);
-  let focusRow = $state<RowId>('apps');
   const rowIndex = $derived(Math.max(0, rows.findIndex(row => row.id === focusRow)));
   let focus = $state(0);
   let launchCovered = $state(false);
@@ -196,12 +205,17 @@
     const offContainers = window.sofaContainers.onShow(() => { power = menu = false; screen = 'containers'; });
     // Artwork downloaded after the tile was first drawn.
     const offArt = window.sofa.onGameArt(({ appId, value }) => { gameArt[appId] = value; });
+    void window.sofa.cameraStills().then(stills => { cameraStills = { ...stills, ...cameraStills }; }).catch(() => undefined);
+    const offStill = window.sofa.onCameraStill(({ appId, value }) => {
+      if (value) cameraStills[appId] = value;
+      else delete cameraStills[appId];
+    });
     if (demo === 'button-test') screen = 'button-test';
     else if (demo === 'guide') openGuide({ context: 'app', appName: 'Netflix' });
     else if (demo === 'menu' || demo === 'edit-home') menu = true;
     else if (demo === 'pip') screen = 'pip';
     else if (demo === 'containers') screen = 'containers';
-    return () => { offApps(); offCover(); offAction(); offArt(); offContainers(); clock.stop(); };
+    return () => { offApps(); offCover(); offAction(); offArt(); offStill(); offContainers(); clock.stop(); };
   });
 </script>
 
@@ -218,7 +232,7 @@
     <section class="row {row.cls}" aria-label={row.label}>
       {#each row.items as app, i (app.id)}
         <!-- Only apps take the 1-9 numbers. -->
-        <div class="app-slot"><Tile {app} index={row.id === 'apps' ? i : 99} art={gameArt[app.id]} focused={footerFocus === null && focusRow === row.id && i === focus} onclick={() => { footerFocus = null; focusRow = row.id; focus = i; open(i, row.id); }} /></div>
+        <div class="app-slot"><Tile {app} index={row.id === 'apps' ? i : 99} art={row.id === 'cameras' ? cameraStills[app.id] : gameArt[app.id]} focused={footerFocus === null && focusRow === row.id && i === focus} onclick={() => { footerFocus = null; focusRow = row.id; focus = i; open(i, row.id); }} /></div>
       {:else}
         <p class="empty">No apps yet. Add some to <code>~/.config/sofa-launcher/config.toml</code>.</p>
       {/each}

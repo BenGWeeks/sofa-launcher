@@ -13,6 +13,8 @@ export interface CameraInputsOptions {
   setClass(id: string, wmClass: string): Promise<void>;
 }
 interface CameraWindow { definition: CameraDefinition; window: BrowserWindow; media: CameraMediaSession; audio: { volume: number; muted: boolean }; rtc: Map<string, CameraWebRtcSession> }
+/** Home-screen camera tiles show stills about this wide. */
+export const TILE_STILL_WIDTH = 480;
 const CHANNELS = ['camera:snapshot', 'camera:state', 'camera:connect', 'camera:start', 'camera:media', 'camera:rtc-offer', 'camera:rtc-candidate', 'camera:rtc-stop'] as const;
 
 /** Camera windows are managed individually; never terminate the shared Electron process. */
@@ -130,6 +132,23 @@ export class CameraInputs {
     }).catch(() => null);
     this.thumbnails.set(appId, { at: Date.now(), value });
     return value;
+  }
+  /** Camera tiles that can have a still now: none until Home Assistant is connected. */
+  stillIds(): string[] {
+    return this.service.connected ? this.definitions.filter(value => value.entity !== 'all').map(value => value.id) : [];
+  }
+  /**
+   * A home-screen tile's still: a ~480 px wide JPEG data URL. Asks Home Assistant for that width
+   * and resizes here too (not every camera can scale). Rejects when there is no image.
+   */
+  async tileStill(appId: string, timeoutMs = 8_000): Promise<string> {
+    const definition = this.definitions.find(value => value.id === appId);
+    if (!definition || definition.entity === 'all') throw new Error('Unknown camera');
+    const bytes = await this.service.snapshot(definition.entity, { width: TILE_STILL_WIDTH, timeoutMs });
+    const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+    if (image.isEmpty()) throw new Error('Camera returned an invalid image');
+    const small = image.getSize().width > TILE_STILL_WIDTH ? image.resize({ width: TILE_STILL_WIDTH, quality: 'good' }) : image;
+    return `data:image/jpeg;base64,${small.toJPEG(75).toString('base64')}`;
   }
   dispose(): void {
     for (const channel of CHANNELS) ipcMain.removeHandler(channel);

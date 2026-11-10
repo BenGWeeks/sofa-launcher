@@ -74,13 +74,13 @@ export class CameraService {
     this.token = token;
     this.protection = encrypted ? 'keyring' : 'file-permissions';
   }
-  private async authorized(path: string, token = this.token, range?: { start: number; end: number }): Promise<Response> {
+  private async authorized(path: string, token = this.token, range?: { start: number; end: number }, timeoutMs = 20_000): Promise<Response> {
     if (!token) throw new Error('Connect Home Assistant to view cameras');
     const url = new URL(path, this.origin);
     if (url.origin !== this.origin || !url.pathname.startsWith('/api/')) throw new Error('Camera media address was rejected');
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
     if (range) headers.Range = `bytes=${range.start}-${range.end - 1}`;
-    try { return await this.request(url, { headers, redirect: 'error', signal: AbortSignal.timeout(20_000) }); }
+    try { return await this.request(url, { headers, redirect: 'error', signal: AbortSignal.timeout(timeoutMs) }); }
     catch { throw new Error('Home Assistant is unreachable'); }
   }
   async states(): Promise<Map<string, { state: string; name: string }>> {
@@ -129,10 +129,15 @@ export class CameraService {
       socket.addEventListener('close', () => { if (!done) finish(new Error('Home Assistant camera connection closed')); });
     });
   }
-  /** The camera's latest still image, as served by Home Assistant's camera proxy. */
-  async snapshot(entity: string): Promise<Uint8Array> {
+  /**
+   * The camera's latest still image, as served by Home Assistant's camera proxy. `width` asks
+   * Home Assistant for a smaller image (it scales where it can; callers still resize).
+   */
+  async snapshot(entity: string, options: { width?: number; timeoutMs?: number } = {}): Promise<Uint8Array> {
     if (!CAMERA_ENTITY.test(entity)) throw new Error('Invalid camera');
-    const response = await this.authorized(`/api/camera_proxy/${entity}`);
+    const width = options.width;
+    if (width !== undefined && (!Number.isSafeInteger(width) || width < 16 || width > 4096)) throw new Error('Invalid image width');
+    const response = await this.authorized(`/api/camera_proxy/${entity}${width ? `?width=${width}` : ''}`, undefined, undefined, options.timeoutMs);
     this.assertResponse(response);
     if (!/^image\/(jpeg|png)\b/i.test(response.headers.get('content-type') ?? '')) throw new Error('Camera returned an invalid image');
     const limit = 16 * 1024 * 1024;
