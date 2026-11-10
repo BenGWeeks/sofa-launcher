@@ -1,0 +1,34 @@
+name: Privacy
+# Fails when a tracked file mentions a maintainer's private details (host names, accounts,
+# domains, addresses). The patterns live in the PRIVACY_DENYLIST repository secret, one
+# case-insensitive extended regex per line, so the list itself is never published.
+# Pull requests from forks get no secrets; the check is skipped there and runs on main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked files
+        env:
+          DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "PRIVACY_DENYLIST is not available here; skipping."
+            exit 0
+          fi
+          patterns=$(mktemp)
+          printf '%s\n' "$DENYLIST" | sed '/^[[:space:]]*$/d' > "$patterns"
+          # -I skips binary files; only file names and line numbers are printed,
+          # never the matching text, so the private patterns stay out of the log.
+          if git grep -I -n -i -E -f "$patterns" -- . ':!package-lock.json' | cut -d: -f1,2 > hits.txt; [ -s hits.txt ]; then
+            echo "::error::Private details found (file:line). Replace them with placeholders, see CONTRIBUTING.md."
+            cat hits.txt
+            exit 1
+          fi
+          echo "No private details found."

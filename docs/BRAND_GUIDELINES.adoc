@@ -1,0 +1,15 @@
+= Sofa Launcher Brand Tokens
+
+KnowAll uses luminous lime `#9DFF0A`, matching the shared brand token in
+https://github.com/knowall-ai/timmie/blob/main/src/app/globals.css[Timmie].
+The deeper shade is `#80DB08`; focus glow uses the same lime hue. Text on the
+accent uses near-black. The KnowAll presentation deck uses the nearly identical
+`#9DFE0A`; Sofa follows Timmie's current application token.
+
+Nodie's selected controls use Bitcoin orange `#F7931A` at full opacity, with a
+strong orange glow. The darker accent is `#FF8C00`.
+Keep the selected theme tick separate from the navigation highlight: exactly one
+theme is selected, while the remote may highlight either option.
+
+The mouse cursor appears when moved and hides after three idle seconds or when
+remote navigation resumes.

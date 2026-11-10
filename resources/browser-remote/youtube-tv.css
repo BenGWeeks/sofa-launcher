@@ -1,0 +1,12 @@
+/* YouTube TV cancels normal browser zoom by scaling its fixed rem canvas.
+ * Shrink browsing rows only; keep the guide, dialogs and video player native.
+ * Preserve the original 6.5rem guide gutter after applying 80% row zoom.
+ */
+ytlr-horizontal-list-renderer {
+  zoom: .8;
+  width: calc(125% - 1.625rem);
+  margin-left: 1.625rem;
+}
+ytlr-horizontal-list-renderer > yt-virtual-list {
+  width: 100% !important;
+}

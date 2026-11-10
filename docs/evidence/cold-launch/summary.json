@@ -1,0 +1,42 @@
+[
+  {
+    "case": "baseline-delayed",
+    "samples": 100,
+    "cover_samples": 0,
+    "cover_missing_from_managed_stack": 0,
+    "panel_above_cover": 0,
+    "cover_geometries": [],
+    "max_sample_gap_ms": 53
+  },
+  {
+    "case": "baseline-edge",
+    "samples": 98,
+    "cover_samples": 0,
+    "cover_missing_from_managed_stack": 0,
+    "panel_above_cover": 0,
+    "cover_geometries": [],
+    "max_sample_gap_ms": 154
+  },
+  {
+    "case": "fixed-delayed",
+    "samples": 100,
+    "cover_samples": 40,
+    "cover_missing_from_managed_stack": 0,
+    "panel_above_cover": 0,
+    "cover_geometries": [
+      "WINDOW=12582915\nX=0\nY=0\nWIDTH=1280\nHEIGHT=720\nSCREEN=0WM_NORMAL_HINTS(WM_SIZE_HINTS):\n\t\tprogram specified location: 0, 0\n\t\tprogram specified minimum size: 1280 by 720\n\t\tprogram specified maximum size: 1280 by 720\n\t\twindow gravity: Static\n_NET_WM_STATE(ATOM) = _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_STATE_MAXIMIZED_HORZ, _NET_WM_STATE_FULLSCREEN"
+    ],
+    "max_sample_gap_ms": 51
+  },
+  {
+    "case": "fixed-edge",
+    "samples": 100,
+    "cover_samples": 8,
+    "cover_missing_from_managed_stack": 0,
+    "panel_above_cover": 0,
+    "cover_geometries": [
+      "WINDOW=12582915\nX=0\nY=0\nWIDTH=1280\nHEIGHT=720\nSCREEN=0WM_NORMAL_HINTS(WM_SIZE_HINTS):\n\t\tprogram specified location: 0, 0\n\t\tprogram specified minimum size: 1280 by 720\n\t\tprogram specified maximum size: 1280 by 720\n\t\twindow gravity: Static\n_NET_WM_STATE(ATOM) = _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_STATE_MAXIMIZED_HORZ, _NET_WM_STATE_FULLSCREEN"
+    ],
+    "max_sample_gap_ms": 51
+  }
+]

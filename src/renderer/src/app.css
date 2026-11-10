@@ -1,0 +1,100 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --fg: #e9edf5;
+  --muted: #8b95a8;
+  --accent: #9dff0a;
+  --accent-strong: #80db08;
+  --accent-glow: rgba(157, 255, 10, 0.55);
+  --accent-contrast: #06120c;
+  --focus-ring: var(--accent);
+  --ok: #3ddc84;
+  /* 1 unit = 1% of screen width: crisp at 4K, same layout at 720p */
+  font-size: 1vw;
+}
+:root[data-theme="nodie"] {
+  --accent: #f7931a;
+  --accent-strong: #ff8c00;
+  --accent-glow: rgba(247, 147, 26, 0.8);
+  --accent-contrast: #1a0f02;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; cursor: none;
+  background: radial-gradient(120% 90% at 20% 0%, #1b2333 0%, var(--bg) 55%, #07080b 100%);
+  color: var(--fg);
+  font-family: 'Inter', 'Noto Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+html.mouse-active, html.mouse-active body { cursor: auto; }
+#app { height: 100%; }
+/* Home backgrounds (Menu → Background). "midnight" is the default rule above. */
+/* .bg-swatch paints the same backdrop on a thumbnail in the Background picker. */
+.bg-swatch { background: radial-gradient(120% 90% at 20% 0%, #1b2333 0%, var(--bg) 55%, #07080b 100%); }
+:root[data-background="corner-glow"] body, .bg-swatch[data-background="corner-glow"] {
+  background:
+    radial-gradient(70% 60% at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 70%),
+    radial-gradient(60% 50% at 100% 100%, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 70%),
+    #07080b;
+}
+:root[data-background="horizon-glow"] body, .bg-swatch[data-background="horizon-glow"] {
+  background:
+    radial-gradient(120% 40% at 50% 108%, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 60%),
+    linear-gradient(#090b10, #050608);
+}
+:root[data-background="brand-wash"] body, .bg-swatch[data-background="brand-wash"] {
+  background:
+    radial-gradient(50% 45% at 15% 10%, rgba(157, 255, 10, 0.1), transparent 70%),
+    radial-gradient(45% 40% at 90% 20%, rgba(247, 147, 26, 0.09), transparent 70%),
+    radial-gradient(60% 50% at 60% 110%, rgba(157, 255, 10, 0.07), transparent 70%),
+    #07080b;
+}
+:root[data-background="dot-grid"] body, .bg-swatch[data-background="dot-grid"] {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 1.5px) 0 0 / 2.2vw 2.2vw,
+    radial-gradient(120% 90% at 50% 0%, #161b26 0%, #07080b 70%);
+}
+:root[data-background="near-black"] body, .bg-swatch[data-background="near-black"] { background: radial-gradient(100% 80% at 50% 40%, #0d1016 0%, #030405 100%); }
+/* Pictures are darkened towards the top so the greeting and clock stay readable. */
+:root[data-background="horizon"] body, .bg-swatch[data-background="horizon"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.45), rgba(7, 8, 11, 0.05)), url('./assets/backgrounds/horizon.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="ribbons"] body, .bg-swatch[data-background="ribbons"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.72), rgba(7, 8, 11, 0.85)), url('./assets/backgrounds/ribbons.jpg') center / cover no-repeat #07080b;
+}
+:root[data-background="smoke-left"] body, .bg-swatch[data-background="smoke-left"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.35), rgba(7, 8, 11, 0.2)), url('./assets/backgrounds/smoke-left.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="smoke-right"] body, .bg-swatch[data-background="smoke-right"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.35), rgba(7, 8, 11, 0.2)), url('./assets/backgrounds/smoke-right.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="nebula"] body, .bg-swatch[data-background="nebula"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.3), rgba(7, 8, 11, 0.15)), url('./assets/backgrounds/nebula.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="planet"] body, .bg-swatch[data-background="planet"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.3), rgba(7, 8, 11, 0.1)), url('./assets/backgrounds/planet.jpg') center bottom / cover no-repeat #07080b;
+}
+/* Stage pictures: already dark, so they need only a light overlay. */
+:root[data-background="pavement-lights"] body, .bg-swatch[data-background="pavement-lights"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.35), rgba(7, 8, 11, 0.1)), url('./assets/backgrounds/pavement-lights.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="glove-and-hat"] body, .bg-swatch[data-background="glove-and-hat"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.3), rgba(7, 8, 11, 0.25)), url('./assets/backgrounds/glove-and-hat.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="toe-stand"] body, .bg-swatch[data-background="toe-stand"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.65), rgba(7, 8, 11, 0.1)), url('./assets/backgrounds/toe-stand.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="moonlit-night"] body, .bg-swatch[data-background="moonlit-night"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.45), rgba(7, 8, 11, 0.2)), url('./assets/backgrounds/moonlit-night.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="stage-lean"] body, .bg-swatch[data-background="stage-lean"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.3), rgba(7, 8, 11, 0.1)), url('./assets/backgrounds/stage-lean.jpg') center bottom / cover no-repeat #07080b;
+}
+:root[data-background="moonwalk"] body, .bg-swatch[data-background="moonwalk"] {
+  background: linear-gradient(rgba(7, 8, 11, 0.3), rgba(7, 8, 11, 0.1)), url('./assets/backgrounds/moonwalk.jpg') center bottom / cover no-repeat #07080b;
+}
+/* Keep the dots in proportion on a thumbnail. */
+.bg-swatch[data-background="dot-grid"] { background-size: 0.5vw 0.5vw, auto; }
+/* Panel and toast windows: the window itself is transparent. */
+html.transparent, html.transparent body, html.transparent[data-background] body { background: transparent; }

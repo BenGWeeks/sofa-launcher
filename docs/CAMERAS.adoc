@@ -1,0 +1,170 @@
+= Home Assistant camera inputs
+
+Camera inputs appear in Sofa's Cameras row. Each configured camera, and the
+All cameras grid, can be selected as a normal main app or as the second screen
+in screen-in-screen. They use dedicated managed Sofa windows. Closing one camera
+closes that window; it never signals the shared Electron process.
+
+== One shared connection
+
+Open a camera tile and enter a Home Assistant long-lived access token in the
+masked setup field. Create the token in the Home Assistant user's Profile →
+Security page. One validated token serves every configured camera; each input
+does not require a Home Assistant browser login. The setup field is cleared
+before the connection request completes.
+
+The main process validates the token with `GET /api/` before saving it. It uses
+Electron safeStorage encryption when an actual system-keyring backend is
+available. If the keyring backend is unavailable or is `basic_text`, it stores
+the credential in a private file with mode `0600`. The Connection screen reports
+which protection is in use. It does not describe basic-text storage as encrypted.
+The credential file is tied to the configured Home Assistant origin.
+
+Token values are not stored in the ordinary Sofa configuration, supplied to
+players as URLs, included in camera state, or passed to external browser apps.
+The only renderer that briefly handles a token is the bundled masked setup
+form. Media and signaling IPC is restricted to the owning camera window's
+bundled top-level frame. HA authentication stays in the main process thereafter.
+
+Connection is available from both single-camera and grid views. A rejected or
+revoked token returns the viewer to setup. A failed replacement token leaves an
+existing working connection intact. Offline cameras show an explicit error;
+Try again refreshes their state before attempting to open the feed again.
+
+== Configuration
+
+The existing configured Home Assistant app URL is reused. An explicit origin may
+also be supplied without adding a generic Home Assistant app tile:
+
+[source,toml]
+----
+[homeAssistant]
+url = "https://home.example.com"
+
+[[cameras]]
+id = "front-door"
+name = "Front door"
+entity = "camera.front_door"
+
+[[cameras]]
+id = "barn"
+name = "Barn"
+entity = "camera.barn"
+----
+
+Do not add an API token to this file. Entity IDs are an allowlist: a viewer for
+one camera can request only that configured entity, and All cameras can request
+only the configured camera list. Duplicate camera entities are rejected by
+configuration validation. Camera state metadata contains names, entity IDs,
+status, audio state and credential-protection type, never the HA token.
+
+== Media transport
+
+Sofa asks HA's `camera/capabilities` WebSocket command which stream types a
+camera provides. It uses HLS when available. HLS-compatible feeds are opened
+with `camera/stream`; the isolated Chromium viewer plays them using hls.js and
+Media Source Extensions. Main-process media fetching rewrites playlist paths
+into opaque, per-window handles. The renderer never receives the underlying
+HA HLS session paths or the bearer credential. Media origin/path checks, byte
+range validation, response limits and bounded segment mappings protect this
+proxy. Only validated `_HLS_msn`, `_HLS_part` and `_HLS_skip` delivery directives
+may be appended to a media handle for live low-latency playlist reloads.
+
+A native WebRTC-only camera uses HA's
+`camera/webrtc/get_client_config`, `camera/webrtc/offer` and
+`camera/webrtc/candidate` signaling. The main process owns HA authentication and
+the WebSocket subscription, forwarding only the peer configuration, answer and
+ICE candidates to that camera's isolated viewer. The viewer adds receive-only
+video/audio transceivers. It does not request a local microphone or camera.
+Pause, close and replacement connections close the WebRTC subscription/peer.
+
+This distinction matters on the TV PC: the installed HA Ring integration
+provides native WebRTC live views rather than a `stream_source()` for HLS.
+Reolink provides an RTSP stream source. An HLS-only implementation is therefore
+insufficient for the configured Ring cameras.
+
+Camera audio starts muted. Sofa controls each camera window's video elements
+directly for separate volume/mute. Camera windows share Sofa's OS process, so
+process-based PulseAudio matching must not be used for those inputs. The All
+cameras input applies its audio setting to the videos in that grid window.
+
+== Verification
+
+[source,shell]
+----
+npm run typecheck
+npm test -- tests/camera-service.test.ts tests/camera-inputs.test.ts tests/camera-loader.test.ts tests/camera-webrtc.test.ts
+npm run build
+node_modules/electron/dist/electron --no-sandbox --ozone-platform=headless --ozone-override-screen-size=1920,1080 tests/camera-window.electron.cjs
+----
+
+The Chromium fixture requires system `ffmpeg`. It creates a temporary local HA
+HTTP fixture and dummy connection token, negotiates HA-style signaling with a
+fixture socket, and plays real generated HLS media through the main-process
+proxy. It also creates a real local WebRTC video producer for the receive-only
+viewer. It exercises the masked disconnected state, remote navigation, offline
+state/retry, multiple viewers, separate audio, pause/resume and close isolation.
+All temporary test credentials/media are removed. The fixture mutes the test
+process's audio output.
+
+Unit checks cover credential storage/encryption, bad replacement/revoked tokens,
+stream protocol failures/timeouts, capability selection, origin/path/range
+validation, per-window handles/audio/IPC ownership, HLS loader ranges/abort, and
+WebRTC session/candidate/error/cleanup behavior.
+
+These fixture checks prove Sofa's renderer/media/window pipeline and protocol
+handling. They do not prove authentication to the user's HA instance, Ring cloud
+connectivity, camera availability, real camera codecs, two-way audio, or long
+running playback on the physical TV. Those require a user-supplied token and
+separate real-feed acceptance. The discovery pass read existing HA registry,
+dashboard and recorder metadata without creating a token or opening live feeds.
+
+== Bounded live discovery check, 2026-11-09
+
+A dedicated user-created token was validated against the real HA instance from
+a development PC. The main process stored the temporary test connection using the OS
+keyring. Authenticated discovery returned all nine configured entities; the
+seven Ring live-view entities advertised native WebRTC. Front door and Cot were
+unavailable. One Barn door attempt showed the viewer's explicit live-stream
+unavailable state with zero decoded frames. The user confirmed the cameras still
+need WiFi setup, so no further feed attempts or all-camera playback were run.
+Actual live playback remains pending that setup. No real camera images/video
+were captured.
+
+The optional real-instance harness is gated explicitly. Its output is limited to
+camera metadata and video counters. Native process stderr should be redirected
+to a private local log; do not publish transport diagnostics, credentials or
+camera imagery.
+
+[source,shell]
+----
+SOFA_CAMERA_LIVE=1 \
+SOFA_CAMERA_TOKEN_FILE=/private/path/to/token \
+SOFA_CAMERA_CONFIG=/private/path/to/cameras.toml \
+SOFA_CAMERA_ORIGIN=https://home.example.com \
+node_modules/electron/dist/electron --no-sandbox --ozone-platform=headless \
+  tests/camera-live.electron.cjs
+----
+
+== Multihomed TV session and native titles
+
+The TV PC's network inventory showed 133 interfaces, including 130 Docker
+bridge/veth interfaces and 172 configured addresses. Electron's default WebRTC
+policy can enumerate every interface, producing a burst of ICE candidates before
+Home Assistant has acknowledged a camera session. Camera windows now use
+`default_public_and_private_interfaces`: Electron documents this as using the
+OS's default HTTP route while retaining its associated private LAN address. This
+setting applies only to the camera window, not other Sofa apps.
+
+Pending candidate queues remain bounded at 128 entries. Duplicates do not consume
+queue entries. Overflow or a lost session emits one viewer failure, closes the
+subscription, and drops queued candidates. Valid late candidate callbacks after
+a peer has stopped are ignored; they do not repeatedly reject IPC requests.
+Renderer queues are also bounded and stale callbacks cannot restore a failed
+player's status. Native window titles stay set to the configured camera name,
+even when the bundled HTML document changes its own title.
+
+Unit checks exercise duplicate bursts, overflow followed by hundreds of late
+callbacks, cleanup, socket loss during queue flush, title protection and stale
+IPC handles. The Chromium fixture also checks the native title and camera-only
+network policy while proving real local HLS and WebRTC playback still works.

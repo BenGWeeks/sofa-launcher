@@ -1,0 +1,199 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>sofa-launcher mockups</title>
+<style>
+  :root{ --tv-bg:#0b0d12; }
+  body{margin:0;font-family:var(--font-sans, Inter, system-ui, sans-serif)}
+  .wrap{display:flex;flex-direction:column;gap:22px}
+  .cap{font-size:13px;color:var(--muted-foreground,#888);margin:0 0 6px}
+  .cap b{color:var(--foreground,#eee);font-weight:600}
+  .tv{container-type:inline-size;position:relative;aspect-ratio:16/9;border-radius:var(--radius,12px);overflow:hidden;
+      background:radial-gradient(120% 90% at 20% 0%,#1b2333 0%,#0b0d12 55%,#07080b 100%);color:#e9edf5;
+      box-shadow:0 0 0 1px rgba(255,255,255,.06) inset}
+  .tv *{box-sizing:border-box}
+  /* top bar */
+  .top{position:absolute;left:4cqw;right:4cqw;top:3.2cqw;display:flex;justify-content:space-between;align-items:baseline}
+  .greet{font-size:2.6cqw;font-weight:600;letter-spacing:-.02em}
+  .greet small{display:block;font-size:1.25cqw;font-weight:400;color:#8b95a8;margin-top:.3cqw}
+  .clock{font-size:3.2cqw;font-weight:300;letter-spacing:-.03em}
+  .clock small{font-size:1.2cqw;color:#8b95a8;margin-left:.6cqw}
+  /* tiles */
+  .row{position:absolute;left:4cqw;right:4cqw;top:16cqw;display:grid;grid-template-columns:repeat(6,1fr);gap:1.6cqw}
+  .tile{position:relative;aspect-ratio:16/10;border-radius:1.2cqw;display:flex;align-items:center;justify-content:center;
+        font-weight:800;font-size:2cqw;letter-spacing:-.02em;box-shadow:0 .6cqw 1.6cqw rgba(0,0,0,.45)}
+  .tile .n,.tile .dot{z-index:1}
+  .tile .n{position:absolute;left:.7cqw;top:.5cqw;font-size:.95cqw;font-weight:600;opacity:.75}
+  .tile .dot{position:absolute;right:.8cqw;top:.8cqw;width:.8cqw;height:.8cqw;border-radius:50%;background:#3ddc84;box-shadow:0 0 .6cqw #3ddc84}
+  .tile .dot.off{background:#6b7280;box-shadow:none}
+  .label{margin-top:.9cqw;font-size:1.3cqw;color:#aeb7c7;text-align:center}
+  .focus .tile{transform:scale(1.12);box-shadow:0 0 0 .35cqw #fff,0 0 3cqw rgba(120,170,255,.55),0 1.2cqw 2.4cqw rgba(0,0,0,.6)}
+  .focus .label{color:#fff;font-weight:600}
+  .jf{background:linear-gradient(135deg,#aa5cc3,#00a4dc)}
+  .nf{background:#141414;color:#e50914;font-size:1.9cqw;letter-spacing:.02em}
+  .pv{background:linear-gradient(135deg,#0f79af,#00a8e1);font-weight:700;font-size:1.8cqw;text-transform:lowercase}
+  .yt{background:#fff;color:#0f0f0f;gap:.5cqw}
+  .yt i{display:inline-block;width:2.6cqw;height:1.85cqw;background:#ff0033;border-radius:.55cqw;position:relative}
+  .yt i:after{content:"";position:absolute;left:1.05cqw;top:.5cqw;border-left:.75cqw solid #fff;border-top:.42cqw solid transparent;border-bottom:.42cqw solid transparent}
+  .ha{background:linear-gradient(135deg,#03a9f4,#18bcf2);font-size:1.5cqw}
+  .nd{background:radial-gradient(circle at 50% 45%,#2a2550,#0e0c1e)}
+  .av{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 22%;border-radius:inherit}
+  .orb{width:5.6cqw;height:5.6cqw;border-radius:50%;box-shadow:0 0 2.2cqw rgba(110,90,255,.75)}
+  /* sections below tiles */
+  .shelf{position:absolute;left:4cqw;right:4cqw;top:33cqw}
+  .shelf h4{margin:0 0 1cqw;font-size:1.35cqw;font-weight:600;color:#c5cddd}
+  .cams{display:flex;gap:1.4cqw}
+  .cam{width:15cqw;aspect-ratio:16/9;border-radius:.9cqw;position:relative;overflow:hidden;background:#1a1f2b}
+  .cam.live{background:linear-gradient(160deg,#4a5a48 0%,#2c3a2e 45%,#1a2219 100%)}
+  .cam.live:before{content:"";position:absolute;left:30%;bottom:0;width:40%;height:62%;background:linear-gradient(#6b5a49,#3f3328);clip-path:polygon(10% 100%,10% 20%,50% 0,90% 20%,90% 100%)}
+  .cam span{position:absolute;left:.6cqw;bottom:.5cqw;font-size:1cqw;font-weight:600;text-shadow:0 1px 2px #000}
+  .cam em{position:absolute;right:.6cqw;top:.5cqw;font-size:.85cqw;font-style:normal;padding:.1cqw .5cqw;border-radius:1cqw;background:#e5484d}
+  .cam.offline{display:flex;align-items:center;justify-content:center;color:#7c8598;font-size:1.05cqw;border:1px dashed #333b4b}
+  /* hint bar */
+  .hints{position:absolute;left:0;right:0;bottom:0;padding:1.3cqw 4cqw;display:flex;gap:2.4cqw;font-size:1.2cqw;color:#9aa4b6;
+         background:linear-gradient(transparent,rgba(0,0,0,.55))}
+  .k{display:inline-flex;align-items:center;justify-content:center;min-width:1.8cqw;height:1.8cqw;padding:0 .5cqw;margin-right:.5cqw;border-radius:.5cqw;background:#222a38;color:#fff;font-weight:700;font-size:1cqw}
+  .c{display:inline-block;width:1.6cqw;height:.55cqw;border-radius:.3cqw;margin-right:.5cqw;vertical-align:middle}
+  /* screen 2: playback */
+  .video{position:absolute;inset:0;background:
+     radial-gradient(60% 80% at 70% 40%,rgba(255,170,80,.35),transparent 60%),
+     radial-gradient(50% 70% at 20% 70%,rgba(30,90,160,.45),transparent 60%),
+     linear-gradient(180deg,#1a1410,#2a1c14 50%,#0e0a08)}
+  .video .bar{position:absolute;left:4cqw;right:4cqw;bottom:3cqw;height:.45cqw;border-radius:.3cqw;background:rgba(255,255,255,.25)}
+  .video .bar:before{content:"";position:absolute;left:0;top:0;bottom:0;width:38%;background:#e50914;border-radius:.3cqw}
+  .video .t{position:absolute;left:4cqw;bottom:4.4cqw;font-size:1.5cqw;font-weight:600;text-shadow:0 1px 3px #000}
+  .pip{position:absolute;right:2.5cqw;bottom:7cqw;width:25cqw;aspect-ratio:16/9;border-radius:.8cqw;overflow:hidden;
+       box-shadow:0 0 0 .2cqw rgba(255,255,255,.85),0 1cqw 2.5cqw rgba(0,0,0,.7)}
+  .pip .cam{width:100%;height:100%;border-radius:0}
+  .pip .cam span{font-size:1.3cqw}
+  .toast{position:absolute;left:50%;top:3cqw;transform:translateX(-50%);padding:1cqw 2cqw;border-radius:3cqw;font-size:1.5cqw;font-weight:600;
+         background:rgba(18,22,30,.88);backdrop-filter:blur(6px);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 .8cqw 2cqw rgba(0,0,0,.5)}
+  /* screen 3: guide */
+  .guide{position:absolute;inset:0;background:rgba(5,7,10,.92);display:grid;grid-template-columns:22cqw 1fr;gap:4cqw;padding:4cqw 5cqw}
+  .remote{background:linear-gradient(#20242c,#111317);border-radius:5cqw 5cqw 7cqw 7cqw;padding:2.6cqw 2.2cqw;display:grid;grid-template-columns:repeat(3,1fr);gap:.9cqw;align-content:start;box-shadow:0 0 0 1px #2b313c inset}
+  .b{height:2.4cqw;border-radius:.6cqw;background:#2a2f39;display:flex;align-items:center;justify-content:center;font-size:1cqw;color:#cfd6e2}
+  .b.hi{background:#3c6df0;color:#fff;box-shadow:0 0 1.2cqw rgba(60,109,240,.8)}
+  .b.r{background:#e5484d}.b.g{background:#30a46c}.b.y{background:#f5d90a;color:#222}.b.bl{background:#3e63dd}
+  .ring{grid-column:1/4;height:9cqw;border-radius:50%;background:#2a2f39;display:flex;align-items:center;justify-content:center;margin:.4cqw 2cqw}
+  .ring div{width:4cqw;height:4cqw;border-radius:50%;background:#3a404c;display:flex;align-items:center;justify-content:center;font-size:1.1cqw;font-weight:700}
+  .legend h3{margin:0 0 .4cqw;font-size:2.3cqw;letter-spacing:-.02em}
+  .legend p{margin:0 0 1.8cqw;color:#8b95a8;font-size:1.25cqw}
+  .lg{display:grid;grid-template-columns:auto 1fr;gap:1cqw 1.6cqw;font-size:1.35cqw;align-items:center}
+  .lg .k{min-width:5.5cqw;height:2.2cqw;font-size:1.05cqw}
+  /* screen 4: button test */
+  .test{position:absolute;inset:0;padding:3.5cqw 5cqw}
+  .test h3{margin:0;font-size:2.3cqw}
+  .prog{margin:1.4cqw 0 2cqw;height:1cqw;border-radius:1cqw;background:#1f2633;position:relative;overflow:hidden}
+  .prog:before{content:"";position:absolute;inset:0;width:80%;background:linear-gradient(90deg,#30a46c,#3ddc84)}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1cqw}
+  .cell{border-radius:.8cqw;padding:1cqw 1.1cqw;background:#151a23;font-size:1.15cqw;line-height:1.35}
+  .cell small{display:block;color:#7c8598;font-size:.95cqw}
+  .cell.ok{background:#11261b;box-shadow:0 0 0 1px #1f5c3b inset}
+  .cell.ok:after{content:"✓";float:right;color:#3ddc84;font-weight:800}
+  .cell.now{background:#16264a;box-shadow:0 0 0 .2cqw #6d9bff,0 0 1.6cqw rgba(109,155,255,.6)}
+  .cell.warn{background:#2a1a12;box-shadow:0 0 0 1px #7a3d1d inset}
+  .cell.warn:after{content:"!";float:right;color:#ff8b3e;font-weight:800}
+  .last{margin-top:2.2cqw;display:grid;grid-template-columns:repeat(3,1fr);gap:1.4cqw;padding:1.8cqw 2cqw;border-radius:1.2cqw;background:#121722;box-shadow:0 0 0 1px #232b3a inset}
+  .last div{font-size:1.1cqw;color:#7c8598}
+  .last b{display:block;margin-top:.4cqw;font-size:1.9cqw;color:#fff;letter-spacing:-.01em}
+  .last .okk b{color:#3ddc84}
+  /* screen 5: power */
+  .dim{position:absolute;inset:0;background:rgba(3,4,6,.72);display:flex;align-items:center;justify-content:center}
+  .menu{width:34cqw;border-radius:1.6cqw;padding:2.4cqw;background:#141922;box-shadow:0 0 0 1px #262e3c,0 2cqw 5cqw rgba(0,0,0,.7)}
+  .menu h3{margin:0 0 1.6cqw;font-size:2cqw;text-align:center}
+  .opt{display:flex;align-items:center;gap:1.2cqw;padding:1.3cqw 1.6cqw;border-radius:1cqw;font-size:1.5cqw;margin-top:.8cqw;background:#1b212c}
+  .opt.f{background:#fff;color:#0b0d12;font-weight:700;transform:scale(1.03)}
+  .opt i{font-style:normal;width:2cqw;text-align:center}
+</style></head>
+<body><div class="wrap">
+
+<div><p class="cap"><b>1 · Home screen</b>: arrows move the focus, OK opens, numbers jump to tiles. A green dot means the app is already running, so it resumes instantly.</p>
+<div class="tv">
+  <div class="top"><div class="greet">Good evening<small>living-room · 4 apps running</small></div><div class="clock">19:42<small>Sun 8 Nov</small></div></div>
+  <div class="row">
+    <div><div class="tile jf"><span class="n">1</span><span class="dot"></span>jellyfin</div><div class="label">Jellyfin</div></div>
+    <div class="focus"><div class="tile nf"><span class="n">2</span><span class="dot"></span>NETFLIX</div><div class="label">Netflix</div></div>
+    <div><div class="tile pv"><span class="n">3</span><span class="dot off"></span>prime video</div><div class="label">Prime Video</div></div>
+    <div><div class="tile yt"><span class="n">4</span><span class="dot"></span><i></i>YouTube</div><div class="label">YouTube</div></div>
+    <div><div class="tile ha"><span class="n">5</span><span class="dot"></span>⌂ Home Assistant</div><div class="label">Home Assistant</div></div>
+    <div><div class="tile nd"><span class="n">6</span><span class="dot off"></span><img class="av" src="img/nodie-avatar.jpg" alt="Nod.ie"></div><div class="label">Nod.ie</div></div>
+  </div>
+  <div class="shelf"><h4>Cameras</h4><div class="cams">
+    <div class="cam live"><em>LIVE</em><span>Front door</span></div>
+    <div class="cam offline">Barn · offline</div><div class="cam offline">Barn door · offline</div>
+    <div class="cam offline">Chicken coop · offline</div><div class="cam offline">Paddock · offline</div></div></div>
+  <div class="hints"><span><span class="k">1–9</span>Apps</span><span><span class="c" style="background:#e5484d"></span>Camera</span><span><span class="k">●</span>Nod.ie</span><span><span class="k">☰</span>Menu</span><span><span class="k">ⓘ</span>Help</span><span style="margin-left:auto"><span class="k">⏻</span>Power</span></div>
+</div></div>
+
+<div><p class="cap"><b>2 · Watching Netflix with the camera picture-in-picture</b>: 🔴 Red toggles it, 🟢 Green switches camera, 🟡 Yellow moves the corner. It stays on top of full-screen video and never takes control from the remote.</p>
+<div class="tv">
+  <div class="video"><div class="t">Episode 4 · The Long Night</div><div class="bar"></div></div>
+  <div class="pip"><div class="cam live"><em>LIVE</em><span>Front door</span></div></div>
+  <div class="toast">📷 Front door</div>
+</div></div>
+
+<div><p class="cap"><b>3 · Remote guide (ⓘ Info)</b>: generated from the same button map the launcher uses, so it always matches. The labels change with what's on screen.</p>
+<div class="tv"><div class="video" style="filter:blur(2px) brightness(.6)"></div>
+  <div class="guide">
+    <div class="remote">
+      <div class="b">⏻</div><div class="b">⇥</div><div class="b hi">ⓘ</div>
+      <div class="b">☰</div><div class="b hi">⌂</div><div class="b">CH▲</div>
+      <div class="ring"><div>OK</div></div>
+      <div class="b">VOL+</div><div class="b">↩</div><div class="b">CH▼</div>
+      <div class="b">⏪</div><div class="b">⏯</div><div class="b">⏩</div>
+      <div class="b hi">●</div><div class="b">■</div><div class="b">🔇</div>
+      <div class="b r"></div><div class="b g"></div><div class="b y"></div>
+      <div class="b bl"></div><div class="b">1</div><div class="b">2</div>
+    </div>
+    <div class="legend"><h3>Your remote, right now</h3><p>Watching <b style="color:#fff">Netflix</b> · camera showing</p>
+      <div class="lg">
+        <span class="k">⌂ Home</span><span>Back to the home screen (Netflix keeps your place)</span>
+        <span class="k">↩ Back</span><span>Back inside Netflix</span>
+        <span class="k" style="background:#e5484d">Red</span><span>Hide camera</span>
+        <span class="k" style="background:#30a46c">Green</span><span>Next camera (offline ones are skipped)</span>
+        <span class="k" style="background:#f5d90a;color:#222">Yellow</span><span>Move camera to the next corner</span>
+        <span class="k">● Rec</span><span>Talk to Nod.ie</span>
+        <span class="k">☰ Menu</span><span>Close Netflix · camera options</span>
+        <span class="k">⏻ Power</span><span>Close launcher · screen off</span>
+      </div></div>
+  </div>
+</div></div>
+
+<div><p class="cap"><b>4 · Button test (Settings)</b>: press each button and it lights up with the key the PC received. It's used when programming the Flirc, and any time something seems off.</p>
+<div class="tv"><div class="test">
+  <h3>Button test <span style="font-weight:400;color:#8b95a8;font-size:1.4cqw">· 32 of 40 working · press ↩ Back twice to exit</span></h3>
+  <div class="prog"></div>
+  <div class="grid">
+    <div class="cell ok">⌂ Home<small>Ctrl+Alt+Shift+H</small></div>
+    <div class="cell ok">⏻ Power<small>Ctrl+Alt+Shift+P</small></div>
+    <div class="cell now">🔴 Red<small>Ctrl+Alt+Shift+R · just now</small></div>
+    <div class="cell">🟢 Green<small>not pressed yet</small></div>
+    <div class="cell">🟡 Yellow<small>not pressed yet</small></div>
+    <div class="cell ok">▲ ▼ ◀ ▶<small>Arrow keys</small></div>
+    <div class="cell ok">OK<small>Enter</small></div>
+    <div class="cell warn">↩ Back<small>Escape · expected Browser Back</small></div>
+    <div class="cell ok">● Record<small>Ctrl+Alt+Shift+N</small></div>
+    <div class="cell ok">⏯ Play<small>Media Play/Pause</small></div>
+    <div class="cell ok">⏩ FF<small>Media Forward</small></div>
+    <div class="cell ok">⏪ Rew<small>Media Rewind</small></div>
+    <div class="cell ok">VOL + / −<small>Volume keys</small></div>
+    <div class="cell">🔵 Blue<small>not pressed yet</small></div>
+    <div class="cell ok">0–9<small>Digits</small></div>
+  </div>
+  <div class="last">
+    <div>Last button<b>🔴 Red</b></div>
+    <div>PC received<b>Ctrl+Alt+Shift+R</b></div>
+    <div class="okk">Launcher action<b>✓ Camera on/off</b></div>
+  </div>
+</div></div></div>
+
+<div><p class="cap"><b>5 · Power menu (⏻)</b>: always asks first, so a stray press never closes what you're watching.</p>
+<div class="tv">
+  <div class="row" style="filter:blur(3px);opacity:.5">
+    <div><div class="tile jf">jellyfin</div></div><div><div class="tile nf">NETFLIX</div></div><div><div class="tile pv">prime video</div></div>
+    <div><div class="tile yt"><i></i>YouTube</div></div><div><div class="tile ha">⌂</div></div><div><div class="tile nd"><img class="av" src="img/nodie-avatar.jpg" alt="Nod.ie"></div></div></div>
+  <div class="dim"><div class="menu"><h3>Power</h3>
+    <div class="opt f"><i>⨯</i>Close Sofa Launcher</div>
+    <div class="opt"><i>◐</i>Turn screen off</div>
+    <div class="opt"><i>↩</i>Cancel</div></div></div>
+</div></div>
+
+</div></body></html>

@@ -1,0 +1,41 @@
+{
+  "name": "sofa-launcher",
+  "productName": "Sofa Launcher",
+  "version": "0.6.0",
+  "description": "Smart-TV-style full-screen launcher for a Linux living-room PC, driven by a SofaBaton remote via Flirc",
+  "author": "Ben Weeks",
+  "license": "MIT",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev -- --dev --no-sandbox",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview -- --dev --no-sandbox",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings",
+    "test": "vitest run",
+    "test:browser": "electron --no-sandbox --ozone-platform=headless --ozone-override-screen-size=1280,720 tests/browser-remote.electron.cjs",
+    "check": "npm run typecheck && npm test",
+    "screenshot": "electron-vite build && electron . --dev --no-sandbox --screenshot=docs/screenshots/home.png && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-nodie.png --demo-theme=nodie && electron . --dev --no-sandbox --screenshot=docs/screenshots/power-menu.png --demo-action=power && electron . --dev --no-sandbox --screenshot=docs/screenshots/remote-guide.png --demo-action=info && electron . --dev --no-sandbox --screenshot=docs/screenshots/button-test.png --demo-screen=button-test && electron . --dev --no-sandbox --screenshot=docs/screenshots/panel.png --demo-screen=panel && electron . --dev --no-sandbox --screenshot=docs/screenshots/settings-menu.png --demo-screen=menu && electron . --dev --no-sandbox --screenshot=docs/screenshots/logout-confirm.png --demo-action=power --demo-confirm-logout && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-planet.png --demo-background=planet && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-nodie-horizon-glow.png --demo-background=horizon-glow --demo-theme=nodie && electron . --dev --no-sandbox --screenshot=docs/screenshots/background-picker.png --demo-screen=menu --demo-keys=ArrowDown,ArrowRight,Enter,ArrowDown,ArrowDown,ArrowRight,ArrowRight && electron . --dev --no-sandbox --screenshot=docs/screenshots/pip-chooser.png --demo-screen=pip && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-games.png --demo-games && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-games-cameras.png --demo-games --demo-screen=camera-home && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-stage-lean.png --demo-background=stage-lean && electron . --dev --no-sandbox --screenshot=docs/screenshots/edit-home.png --demo-screen=edit-home --demo-games --demo-keys=ArrowRight,ArrowRight,Enter && electron . --dev --no-sandbox --screenshot=docs/screenshots/containers.png --demo-screen=containers && electron . --dev --no-sandbox --screenshot=docs/screenshots/home-docker.png --demo-docker",
+    "dist:deb": "umask 022 && rm -rf release && electron-vite build && electron-builder --linux deb --publish never"
+  },
+  "dependencies": {
+    "hls.js": "^1.7.4",
+    "smol-toml": "^1.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.0.0",
+    "electron": "45.2.3",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.8",
+    "typescript": "~5.9.0",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  },
+  "desktopName": "sofa-launcher.desktop",
+  "homepage": "https://github.com/BenGWeeks/sofa-launcher"
+}

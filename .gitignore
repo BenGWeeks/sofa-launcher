@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+release/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+spikes/*/package-lock.json
+
+# Local test captures that may show the machine name or real services
+docs/screenshots/launch-cover-*.png

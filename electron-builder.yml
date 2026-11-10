@@ -1,0 +1,43 @@
+appId: io.github.bengweeks.sofa-launcher
+productName: sofa-launcher
+executableName: sofa-launcher
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+extraResources:
+  - from: resources/browser-remote
+    to: browser-remote
+  - from: build/icons/256x256.png
+    to: icon.png
+# Harden the binary: the AppArmor profile re-enables userns for it, so it must not
+# double as a general-purpose Node runtime (ELECTRON_RUN_AS_NODE etc.).
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  enableCookieEncryption: true
+linux:
+  icon: build/icons
+  target: [deb]
+  category: AudioVideo
+  maintainer: Ben Weeks
+  synopsis: Smart-TV-style launcher for a living-room PC
+  executableArgs: []
+  desktop:
+    entry:
+      Name: Sofa Launcher
+      Comment: Smart-TV-style launcher for the living-room PC
+      StartupWMClass: sofa-launcher
+deb:
+  # Installs to /opt/Sofa Launcher by default; electron-builder's after-install
+  # script sets chrome-sandbox to root:root 4755 (see spikes/s1-sandbox).
+  packageName: sofa-launcher
+  depends: [xdotool, x11-xserver-utils, x11-utils, python3, pulseaudio-utils]
+# Releases are published by .github/workflows/release.yml, never by electron-builder.
+publish: null

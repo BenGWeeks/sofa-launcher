@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 120" role="img" aria-label="Sofa Launcher">
+  <style>
+    text {
+      font-family: monospace;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .green { fill: #84cc16; }
+    .orange { fill: #f7931a; }
+  </style>
+  <text x="10" y="20" xml:space="preserve"><tspan class="green">███████╗ ██████╗ ███████╗ █████╗ </tspan><tspan class="orange">    ██╗      █████╗ ██╗   ██╗███╗   ██╗ ██████╗██╗  ██╗███████╗██████╗ </tspan></text>
+  <text x="10" y="36" xml:space="preserve"><tspan class="green">██╔════╝██╔═══██╗██╔════╝██╔══██╗</tspan><tspan class="orange">    ██║     ██╔══██╗██║   ██║████╗  ██║██╔════╝██║  ██║██╔════╝██╔══██╗</tspan></text>
+  <text x="10" y="52" xml:space="preserve"><tspan class="green">███████╗██║   ██║█████╗  ███████║</tspan><tspan class="orange">    ██║     ███████║██║   ██║██╔██╗ ██║██║     ███████║█████╗  ██████╔╝</tspan></text>
+  <text x="10" y="68" xml:space="preserve"><tspan class="green">╚════██║██║   ██║██╔══╝  ██╔══██║</tspan><tspan class="orange">    ██║     ██╔══██║██║   ██║██║╚██╗██║██║     ██╔══██║██╔══╝  ██╔══██╗</tspan></text>
+  <text x="10" y="84" xml:space="preserve"><tspan class="green">███████║╚██████╔╝██║     ██║  ██║</tspan><tspan class="orange">    ███████╗██║  ██║╚██████╔╝██║ ╚████║╚██████╗██║  ██║███████╗██║  ██║</tspan></text>
+  <text x="10" y="100" xml:space="preserve"><tspan class="green">╚══════╝ ╚═════╝ ╚═╝     ╚═╝  ╚═╝</tspan><tspan class="orange">    ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</tspan></text>
+</svg>

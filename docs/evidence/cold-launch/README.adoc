@@ -1,0 +1,58 @@
+= Cold launch verification — 2026-11-10
+
+The real bundled Sofa main/preload/renderer ran fullscreen in a 1280×720 Xephyr
+X11 server with its own kwin_x11, temporary HOME/XDG directories and private
+D-Bus session. The final run also updated that bus's activation environment to
+the temporary directories and nested display. No KDE settings were intentionally
+changed. A red, mapped `_NET_WM_WINDOW_TYPE_DOCK` native X11 window stood in for
+Plasma's panel. No streaming services were opened.
+
+== Cases and evidence
+
+The "before" case ran unchanged origin/main launching an Electron desktop fixture
+that maps at 600×400, then requests fullscreen after 1.8 seconds; the "after" case
+ran the fixed launcher with the same fixture. (Screen recordings were made but are
+not kept in the repository.) They illustrate Home versus the new black cover; they
+do not demonstrate a reproduced TV flash.
+
+The Edge case ran the fixed launcher cold-starting installed Edge with a fresh
+temporary `--user-data-dir`, `--class=sofa-cold-probe`, `--start-fullscreen`,
+`--no-first-run`, `--no-default-browser-check`, `--disable-background-networking`,
+`--password-store=basic` and a local `--app=data:text/html,...` green test page.
+It is configured as a custom desktop app so the production web-URL validator
+need not permit data URLs. The baseline also ran this cold Edge case.
+
+The fixture used its own `sofa-cold-delayed` WM_CLASS, distinct from Sofa's class.
+Both cases went through Home's tile shortcut, the real AppManager process spawn,
+discovery and activation path, and the production launchCover controller.
+
+`*-*.json` contains approximately 50 ms samples of
+`xprop -root _NET_ACTIVE_WINDOW _NET_CLIENT_LIST_STACKING`, active-window state
+and class, cover geometry from `xdotool getwindowgeometry --shell`, and the
+cover's `WM_NORMAL_HINTS` and `_NET_WM_STATE`. Stacks run bottom to top.
+`cover_visible` distinguishes the dedicated cover from fallback Home in the
+`cover` field. `panel_above` compares their indexes only when both are managed;
+`summary.json` also checks that no visible final cover is absent from the stack.
+
+Both fixed cases have 100 samples, maximum interval 51 ms. The delayed case has
+40 cover-visible samples, Edge has eight: zero have the panel above the cover,
+and every visible cover is managed and exactly 1280×720 at (0,0). The target
+became active and fullscreen and the cover disappeared. The recording also
+checks pixels, including the last screen row/column. All test launcher, fixture,
+Edge, Xephyr, KWin and test-session helper processes were stopped afterwards.
+
+== Limits
+
+The unchanged build did not reproduce the reported TV flash in this nested
+session. Its older samples include a screenshot-induced 154 ms gap in the Edge
+case. The fixed measurements take screenshots from the video afterwards and
+have no such pause. These are sampled observations, not a proof about every
+composited frame or every real application.
+
+Physical TV/Plasma behaviour, first-run dialogs, Flatpak apps, multi-monitor and
+HiDPI layouts were not exercised. Eight-second expiry, a hung open/X11 probe,
+unrelated windows, a normal window becoming fullscreen, and overlapping launches
+are covered by deterministic unit tests. In the recorded build, nonfullscreen
+apps released through the timeout. The review fix now releases those apps once
+a matching mapped window is active; fullscreen launches still wait for the
+fullscreen state.

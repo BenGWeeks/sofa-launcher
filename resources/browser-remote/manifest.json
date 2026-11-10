@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Sofa remote navigation",
+  "version": "0.2.3",
+  "description": "Directional selection and a visible focus ring for Sofa's streaming app windows.",
+  "content_scripts": [{
+    "matches": ["https://*.primevideo.com/*", "https://*.netflix.com/*", "https://fountain.fm/*", "https://www.audible.co.uk/*", "https://www.audible.com/*", "https://listen.tidal.com/*", "https://tidal.com/*"],
+    "js": ["remote.js"],
+    "run_at": "document_idle"
+  }, {
+    "matches": ["https://www.youtube.com/tv*"],
+    "css": ["youtube-tv.css"],
+    "run_at": "document_start"
+  }, {
+    "matches": ["https://www.youtube.com/tv*"],
+    "js": ["youtube-tv-back.js"],
+    "world": "MAIN",
+    "run_at": "document_start"
+  }]
+}

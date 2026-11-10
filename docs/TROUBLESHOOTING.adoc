@@ -1,0 +1,273 @@
+= Sofa Launcher Troubleshooting
+
+== Back works with xdotool taps but fails with a held remote button
+
+X11 global shortcuts are passive keyboard grabs. While the Flirc's trigger key
+is held, synthetic app keys can be delivered to Sofa instead of the app.
+All app chords now use `sendKeysToApp`: query the X11 keymap until the initially
+held keys are up (1500 ms limit), then send via argv-only `xdotool`.
+The Python subprocess has a 2500 ms kill timeout; helper failures still permit
+a best-effort send if the original window still has focus. Repeated triggers of
+the same chord are ignored while its release wait or send is in flight. Focus
+changes during the wait cancel the send. A button held beyond the limit may
+still lose its chord.
+
+Back starts polling for the extension's `[sofa:home]` title marker after the
+send finishes. The title query is independent of keyboard grabs. Before showing
+Home, Sofa confirms the requesting window still has focus.
+
+Run `python3 tests/app-keys-x11.py` from the repository root on a development
+X11 desktop with Xephyr, KWin, D-Bus and xdotool installed. It creates an isolated
+display and temporary Chromium profile, reproduces the lost chord with a 300 ms
+hold, then verifies guarded history Back and first-page Home for the streaming
+helper and YouTube-style close override. It closes its windows/processes.
+`SOFA_BACK_EVIDENCE_DIR="$PWD/docs/screenshots"` optionally records before/after
+fixture images. These are local Electron Chromium fixtures using the production
+TypeScript helpers and extension scripts, not the full Sofa renderer, Edge,
+live streaming sites or the physical Flirc. Those device checks remain manual.
+
+== YouTube TV cards stay large after browser zoom
+
+YouTube TV adjusts its root rem scale to cancel normal browser zoom. Sofa's
+YouTube-only stylesheet now displays browsing rows at 80%, while leaving its
+native guide, dialogs, keyboard handling and video player unchanged. Native
+Right navigation through four cards was verified on the TV PC; the player
+container retained the full viewport bounds. This is a website layout adapter
+and may need updating if YouTube changes its TV markup.
+
+== Netflix Back does not activate the player arrow; a scrollbar covers video
+
+Streaming apps with Sofa's navigation extension now receive Ctrl+Shift+F8 for Back.
+The extension clicks a visible app back control before falling back to browser
+history. YouTube TV receives its native Escape instead. Netflix and Prime
+scrollbars are hidden without disabling scrolling. These changes require the
+app browser window to restart with the updated extension.
+
+== Menu seems to do nothing while using screen-in-screen
+
+Menu now opens the visible bottom app panel first. Up from its app tiles enters
+spatial screen selection; arrows choose main or inset and OK transfers control.
+The panel includes Close second screen and Browse second screen directly.
+Close second screen closes the inset app and returns to the main app; Stop
+screen-in-screen instead restores both app windows. Sofa also keeps its hidden
+home window in fullscreen, avoiding the unnecessary fullscreen-exit transition
+that could expose the desktop panel when switching back to an app.
+
+== Arrows do not move between Jellyfin films; desktop panel is visible
+
+The desktop interface does not provide the expected TV navigation. Launch
+Jellyfin Desktop with `--tv --fullscreen` after the Flatpak application ID. These
+options were verified against the installed application's `--help` on
+the TV PC. Close an already-running desktop instance before testing the new
+launch arguments; bringing an existing window forward does not rerun them.
+
+The current Jellyfin profile on the TV PC stayed in the desktop layout with
+Display mode set to Auto, even when launched with `--tv`. In Jellyfin Settings →
+Display, explicitly select TV, Save, then reload. Verify with arrows and OK: on
+2026-11-09 these opened Andor's episode details. Fullscreen alone is not proof of
+working directional focus.
+
+== Jellyfin displays two overlapping headers
+
+The server's custom desktop header conflicts with the built-in TV layout. Enable
+Disable server-provided custom CSS code in this client's Display settings, Save
+and reload. This client setting avoids changing the server's styling for other
+devices.
+
+== A website or Nod.ie ignores directional buttons
+
+Fullscreen controls window presentation; the application must also implement
+directional focus navigation. Choose Menu → Remote pointer as a fallback.
+Arrows move the cursor, OK clicks, CH up/down scroll, Back returns to normal
+navigation. Pointer mode releases its key grabs when focus changes, when an
+operation fails, or when Home/Menu is used.
+
+== Apps remain open after closing Sofa
+
+Sofa previously closed only processes it spawned, left Nod.ie running by default,
+and skipped cleanup on complete Quit. Session cleanup now includes apps brought
+forward through Sofa, honours explicit `keepOnClose`, and runs before Quit.
+Apps not used through Sofa are left alone.
+
+For deployment restarts use `sofa-launcher --quit`, then start Sofa again. This
+sends a graceful shutdown request to the resident instance. The Electron 44
+development runtime on the TV PC can leave a windowless process after
+SIGTERM; it was not a reliable restart mechanism during device testing.
+
+== Nod.ie reports updates or activity needing attention
+
+Inspect Nod.ie's Settings diagnostics and container update recommendations.
+These notifications are independent of Sofa's navigation. If a container is
+reported unhealthy (for example a health check failing with
+`wget: bad address 'example.com:8443'`), verify DNS and health-check
+configuration before changing the service. An update recommendation is not
+evidence that an update is safe or required to fix remote navigation.
+
+== The screen-in-screen website is too crowded to browse
+
+The small window retains the desktop's display scale, so an inset on a high-DPI
+TV can have a narrow logical viewport. Enlarge it with Browse second screen,
+choose the item, then use Return to small screen. This preserves the pair and
+its chosen inset position/size. It does not change a website's saved zoom or
+assume that video playback has started.
+
+Keep the main window borderless and display-sized during the pair. The recorded
+KWin checks found that an active native fullscreen main window covers ordinary
+keep-above inset windows, so retaining native fullscreen is not an established
+fix for desktop-panel flashes. Any layering change needs a real KWin stacking
+check with focus sent to each app, plus restoration of both snapshots.
+
+== TIDAL arrows scroll instead of selecting albums
+
+On the TV PC the listener URL `https://listen.tidal.com/` redirects to
+`https://tidal.com/`. The navigation content script previously matched only the
+listener hostname, so no Sofa focus ring or directional handling loaded after
+that redirect. Both HTTPS hosts are now covered. Restart the TIDAL app window
+after updating the extension. Development PC Chromium fixtures check host coverage,
+arrow selection and OK; on the TV PC arrows reached an album Play control
+and OK started advancing audio.
+
+== Sofa disappears when the installer terminal closes
+
+Start the installed application in a new session using
+`scripts/restart-user.sh`, as the TV desktop user without sudo. The script asks
+the resident instance to quit, waits for shutdown, uses `setsid -f` with detached
+standard input/output, and verifies the new process stays alive. Merely printing
+an asynchronous launch command's success does not prove Sofa stayed running.
+The launcher must remain resident to handle the remote Power/Home shortcuts.
+
+== KDE taskbar briefly appears during an app/menu handoff
+
+A read-only X11 snapshot from the TV PC showed the Plasma dock still mapped at
+the bottom of the display, above inactive fullscreen Sofa/YouTube windows and
+below the active fullscreen app. Hiding an outgoing fullscreen overlay before
+the next app accepts focus can expose that dock between the two states.
+
+Window handoffs now keep the outgoing cover mapped until the replacement has
+accepted focus. `xdotool windowactivate --sync` waits for the X11 acknowledgment,
+with a two-second command timeout. Controlled panel transitions suppress the
+blur auto-hide handler; a newer panel request cancels any stale hide operation.
+Home appears before its old panel is removed. PiP layout is prepared while Sofa
+covers the desktop, then Sofa is hidden after the selected app has focus.
+The existing borderless/keep-above/transient PiP stacking model is preserved.
+
+Ordering alone did not remove the flash when the slide-up menu opened. The cause
+is KWin's layering rule: a fullscreen window sits above the desktop panel only
+while it, or one of its transient (child) windows, is the active window. The
+menu is a separate window, so giving it focus dropped the app below the taskbar
+for as long as the menu was open; the taskbar showed until the menu's own
+pixels were painted over it. The menu is now marked `WM_TRANSIENT_FOR` the app
+it covers before it is shown (and cleared when hidden), so the app never leaves
+the fullscreen layer.
+
+This is verified without timing: in a nested X server (Xephyr) with its own
+`kwin_x11`, a dock-type window and a fullscreen test app, the dock is above the
+app in `_NET_CLIENT_LIST_STACKING` on every menu open without the transient
+hint, and never with it. Do that kind of check on the development machine, in
+a nested display with a throwaway `HOME`, not on the TV.
+
+== Play controls a different streaming app
+
+KDE's Media Controller can choose a background player. Sofa now temporarily
+claims the four standard transport keys and routes each command to the selected
+app's window/PID. TIDAL's foreground adapter targets its bottom player directly,
+including a loaded track that has no active MPRIS session yet. Physical FF/Rew
+select next/previous tracks in TIDAL. Original KDE transport shortcuts are saved
+before changes and restored on full Quit. `--undo-user-setup` can recover a crash
+journal after Sofa is stopped. System volume bindings are preserved.
+
+== TIDAL gets trapped at Custom mixes or inside Collection
+
+The fixed player bar covers items scrolled to the viewport's bottom. Sofa now
+centers content cards and keeps vertical movement within the main content while
+further rows exist. Collection is a CSS hover menu; native Escape does not hide
+it while the pointer remains over its trigger. Sofa gives it explicit keyboard
+open/close state: Right/OK opens it, Back/Left dismisses it, and mouse movement
+restores normal hover behavior.
+
+== A browser app behaves like an older navigation build
+
+Earlier development previews can leave additional unpacked Sofa adapters enabled
+inside a dedicated app profile. The first copy to create the focus ring wins,
+which can mask a newer adapter. Before starting a stopped profile, Sofa now
+removes obsolete copies of its own navigation extension and keeps the current
+resource path. Unrelated browser extensions are preserved. Preferences are never
+rewritten while that browser profile is running.
+
+== Taskbar shows while an app opens from home
+
+Cold Edge profiles can map a normal window before becoming fullscreen, and may
+create extra first-run windows. PR #11 kept Home above until any foreign window
+was active and fullscreen. That did not resolve the reported cold-start flash on
+the TV: Home is still subject to KWin's inactive-fullscreen layering. Its timeout
+also started only after app discovery, which can take twenty seconds.
+
+`src/main/launch-cover.ts` now controls a dedicated black cover, prepared after
+Home and its listeners exist. Preparation failures are logged and the partial
+cover is destroyed, leaving Home usable. Its black background needs no renderer
+document. It is a managed fullscreen window with the notification type set
+through the validated, argv-only `xprop` helper. `showInactive()` and ignored mouse
+events let the target accept focus underneath. Avoid Electron's native
+`type: 'notification'` and `focusable: false`: the tested Electron/X11 combination
+made those windows override-redirect and one pixel smaller than the display.
+
+The cover stays until a visible window matching the selected app's WM_CLASS is
+active, and fullscreen if the app requests it. Any active fullscreen non-Sofa
+window also releases it, including updaters and apps with a different WM_CLASS.
+The deadline is four seconds for desktop apps and eight seconds for web/camera apps.
+Home ignores navigation and launch keys while covered; the Home button still cancels.
+Toasts wait until the notification-layer cover is hidden so launch failures stay visible.
+Web app mode, Sofa camera windows and desktop commands with an explicit
+`--fullscreen`, `--start-fullscreen` or `-fullscreen` flag require
+`_NET_WM_STATE_FULLSCREEN`. The `fullBrowser` Edge tile is excluded from that
+requirement. Polling runs every 100 ms, checking focus before discovery or
+fullscreen probes and skipping those probes while Sofa has focus.
+The deadline runs independently of app discovery and slow X11 probes. Home navigation
+releases it only after Home has focus; a newer launch owns its own deadline.
+Windowed desktop/Flatpak apps and the full Edge browser (maximised by design)
+release the cover as soon as a matching mapped window is active. A failed open
+(`ok: false` or an exception) cancels its cover immediately. Their taskbar may
+remain visible afterwards by design.
+
+The nested Xephyr/KWin verification uses the real launcher, a mapped dock-type
+panel, a delayed-fullscreen desktop fixture and cold Edge with a new temporary
+profile and a local `data:` page. Approximately 50 ms samples check active-window,
+managed stacking and cover geometry; recordings and raw samples are in
+`docs/evidence/cold-launch/`. The final cover is exactly screen-sized and the dock
+never stacks above it in the recorded samples. The old build also passed the
+nested checks: the TV-specific regression has not been reproduced here. Physical
+TV/Plasma verification, first-run dialogs and real Flatpak apps remain outstanding.
+
+
+The built Home/preload regression can be run on an isolated X11 display with
+`npm run build && electron --no-sandbox tests/launch-cover.electron.cjs`.
+Set `SOFA_COVER_KWIN=1` with KWin running to additionally verify the notification
+cover stacks above keep-above toasts and is hidden before a queued toast appears.
+
+== Pinned camera closes immediately on Linux
+
+Electron 45.2.3 does not provide `screen.screenToDipRect` on Linux. Calling it
+throws during pin setup and triggers the normal rollback, closing the viewer.
+The shared pin adapter now converts the origin with `screen.screenToDipPoint`
+and divides the dimensions by the destination display's scale factor. Both the
+unit tests and the native X11 smoke exercise this adapter; at scale factor 1,
+physical and DIP rectangles are identical.
+
+== Pinning a camera while a Sofa menu is open
+
+Keep the viewer mapped while the X11 helper exits fullscreen and sets inset
+geometry. Hiding it first can leave EWMH state requests unhandled. Electron's
+fullscreen exit must also happen before the helper finalizes decorations:
+preparing X11 first produced a framed 608×366 window instead of the requested
+576×324 in the KWin smoke test. The pin adapter configures Electron with
+visibility deferred, awaits X11 preparation and keep-above, then applies menu
+suppression. `tests/pinned-inset.electron.cjs` pins under an open overlay and
+checks visibility, restored geometry, stacking and focus.
+
+== Camera Chromium fixture cannot reach Retry with arrows
+
+Run `tests/camera-window.electron.cjs` with the documented
+`--ozone-platform=headless --ozone-override-screen-size=1920,1080` flags. Without
+the screen-size override, the fixture reached live playback but failed its
+spatial arrow-navigation assertion on the offline camera. With the override,
+the same run passed remote Retry, HLS, WebRTC, and pause/resume checks.
