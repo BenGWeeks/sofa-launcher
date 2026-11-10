@@ -18,10 +18,11 @@ export interface HomeCandidate {
 
 /**
  * Apps: config.toml's apps in file order (hidden ones too), then every other non-game catalogue
- * app. Games: configured games, then detected Steam games. Cameras: as configured.
- * `steamApps` are all detected Steam games; `[games]` decides which are shown by default.
+ * app. Games: configured games, then detected games (Roblox when Sober is installed, Steam games).
+ * Cameras: as configured. `detectedGames` are every detected game; `[games]` decides which are
+ * shown by default (`enabled` for all of them, `hidden` for Steam app ids).
  */
-export function homeCandidates(config: Config, steamApps: ResolvedApp[]): HomeCandidate[] {
+export function homeCandidates(config: Config, detectedGames: ResolvedApp[]): HomeCandidate[] {
   const configured = config.configuredApps;
   const taken = new Set([...configured.map((c) => c.app.id), ...config.apps.map((a) => a.id)]);
   const used = new Set(config.usedCatalogue);
@@ -41,11 +42,11 @@ export function homeCandidates(config: Config, steamApps: ResolvedApp[]): HomeCa
     if (app.group === 'games') out.push({ app, section: 'games', defaultShown: !hidden });
   }
   const hiddenGames = new Set(config.games.hidden);
-  for (const app of steamApps) {
+  for (const app of detectedGames) {
     if (taken.has(app.id)) continue;
     taken.add(app.id);
-    const appId = app.id.replace(/^steam-/, '');
-    out.push({ app, section: 'games', defaultShown: config.games.enabled && !hiddenGames.has(appId) });
+    const steamId = /^steam-(\d+)$/.exec(app.id)?.[1];
+    out.push({ app, section: 'games', defaultShown: config.games.enabled && !(steamId && hiddenGames.has(steamId)) });
   }
   for (const app of config.apps) {
     if (app.type === 'camera') out.push({ app, section: 'cameras', defaultShown: true });
