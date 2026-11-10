@@ -23,7 +23,7 @@ Sofa Launcher turns a Linux living-room PC into a **Smart TV you control from th
 - **Everything from the remote**: arrows, OK, Back, Home, Menu, the number keys and the colour buttons all do something sensible, in the launcher and inside each app.
 - **Streaming and desktop apps side by side**: Netflix, Prime Video, YouTube (its TV interface), Disney+, BBC iPlayer, Spotify, TIDAL, Audible and Fountain as browser apps; the full Microsoft Edge browser for general browsing; Jellyfin Desktop and Nod.ie as desktop apps; your own in `config.toml`.
 - **Edit home screen with the remote**: show or hide any app, game or camera from a grid of tiles, without touching `config.toml`.
-- **Games row**: the logged-in user's installed Steam games appear on the home screen automatically, with Steam's artwork, next to games you add yourself (such as Roblox).
+- **Games row**: the logged-in user's installed Steam games, and Roblox when the Sober Flatpak is installed, appear on the home screen automatically, with Steam's artwork, next to games you add yourself.
 - **Screen-in-screen**: put one app or a Home Assistant camera in a corner over another, move and resize it, and switch which one the remote controls.
 - **Docker at a glance**: a Docker tile opens a full-screen view of every container on the TV PC, grouped by stack, with an icon and a red/amber/green status each (read-only).
 - **Slide-up menu while watching**: switch app, close it, open the on-screen keyboard or the remote pointer, without leaving what is playing.
@@ -177,8 +177,9 @@ with each item's own artwork and name:
   after the apps from `config.toml`. Apps whose program is missing are marked
   **Not installed** and can't be switched on. Home Assistant and Jellyseerr are
   marked **Needs setup** until `config.toml` gives them their address.
-- **Games** lists configured games and every installed Steam game (those in
-  `[games] hidden`, or all of them with `enabled = false`, start hidden).
+- **Games** lists configured games, Roblox when Sober is installed, and every
+  installed Steam game (Steam games in `[games] hidden`, or every detected game
+  with `enabled = false`, start hidden).
 - **Cameras** lists the camera grid and each camera; without cameras it says how
   to add them.
 
@@ -197,7 +198,7 @@ hand-edited `config.toml`:
 { "version": 1, "hidden": ["netflix", "steam-552990", "camera-front-door"], "shown": ["disney"] }
 ```
 
-Ids are the launcher's own: the app id, `steam-<appid>`, `camera-<id>` or
+Ids are the launcher's own: the app id (`roblox` for detected Roblox), `steam-<appid>`, `camera-<id>` or
 `all-cameras`. A choice in `home.json` wins over `config.toml` (including over
 `hidden = true` and `[games] hidden`); only choices that differ from
 `config.toml` are stored, so switching a tile back forgets it. The file is
@@ -250,15 +251,26 @@ Wallpaper Engine, cannot be told apart reliably: hide them by Steam app id
 
 ```toml
 [games]
-enabled = true                      # false: Steam games start hidden (Edit home screen can show some)
+enabled = true                      # false: detected games (Steam, Roblox) start hidden (Edit home screen can show some)
 hidden = ["431960", "468020"]       # Steam app ids to leave out
 fetchArt = true                     # false: never download artwork from Steam (use Steam's cached copy)
 ```
 
+**Roblox** appears automatically, like Steam games: it runs on Linux through the
+[Sober](https://sober.vinegarhq.org/) Flatpak (`org.vinegarhq.Sober`), and as soon
+as Sober is installed, system-wide (`/var/lib/flatpak`) or for the user
+(`~/.local/share/flatpak`), a Roblox tile joins the Games row, before the Steam
+games. Sofa only checks that Sober's files are there (it doesn't run `flatpak` to
+look), on the same schedule as Steam games, so Sober installed while Sofa runs
+shows up the next time Home is shown (re-checked at most every 30 seconds). Hide it in Edit home
+screen (id `roblox`; `[games] hidden` takes Steam app ids only), or with
+`[games] enabled = false` along with the Steam games.
+
 **Your own games**: mark any app with `group = "games"` to put it in the Games
 row instead of Apps (`group = "apps"` moves it back). Configured games come first,
-in config order, then Steam games. The catalogue has Roblox, which runs through
-the [Sober](https://sober.vinegarhq.org/) Flatpak (`org.vinegarhq.Sober`):
+in config order, then detected games. To place Roblox yourself, or hide it in
+`config.toml`, list it; a configured Roblox (catalogue `roblox`, id `roblox`, or
+the Sober Flatpak) replaces the detected one:
 
 ```toml
 [[apps]]

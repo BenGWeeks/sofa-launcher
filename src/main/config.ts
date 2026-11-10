@@ -269,7 +269,9 @@ export const SEED_CONFIG = `# Sofa Launcher configuration. Tiles appear in this 
 # Any field can be overridden; set hidden = true to hide a tile.
 # Menu → Edit home screen shows or hides apps, games and cameras without editing this file:
 # those choices are kept in home.json next to it, and win over hidden = true here.
-# group = "games" puts an app in the Games row (no 1-9 number). Roblox (via the Sober Flatpak) is a game already:
+# group = "games" puts an app in the Games row (no 1-9 number).
+# Roblox appears in the Games row automatically when the Sober Flatpak (org.vinegarhq.Sober) is
+# installed; list it here only to change it (e.g. its place, or hidden = true):
 #   [[apps]]
 #   id = "roblox"
 #   catalogue = "roblox"
@@ -326,10 +328,10 @@ catalogue = "fountain"
 id = "tidal"
 catalogue = "tidal"
 
-# Installed Steam games of this login appear in the Games row after the games above.
+# Installed Steam games of this login (and Roblox, if Sober is installed) appear in the Games row after the games above.
 # [games]
-# enabled = true          # false hides Steam games
-# hidden = ["552990"]     # Steam app ids to leave out
+# enabled = true          # false hides detected games (Steam and Roblox) until shown in Edit home screen
+# hidden = ["552990"]     # Steam app ids to leave out (hide Roblox in Edit home screen)
 # fetchArt = true         # download each game's official picture from Steam (sends only the game's Steam number)
 
 # The Docker tile shows container status from a read-only JSON file (see README):

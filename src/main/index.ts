@@ -25,6 +25,7 @@ import { validateBackground, validateTheme, validateBrowser, writeBackground, wr
 import { Debouncer } from './debounce';
 import { DEMO_STEAM_GAMES, demoArtBitmap, demoCameraHasStill, demoCameraStillBitmap, isDemoMode, screenshotConfig, steamGamesRow } from './demo';
 import { CameraStills } from './camera-stills';
+import { detectRoblox } from './sober';
 import { findSteamGames, steamBinary, steamGameApps } from './steam';
 import { chooseGameArt, GameArtFetcher } from './game-art';
 import { homeCandidates, resolveHome, type HomeCandidate } from './home-items';
@@ -103,9 +104,9 @@ let cameraOrigin: string | null = null;
 let containerSource: ContainerStatusSource | null = null;
 /** Screenshots: --demo-screen=containers (the view) or --demo-docker (the tile on Home). */
 const DEMO_DOCKER = DEMO_SCREEN === 'containers' || flag('demo-docker');
-/** Installed Steam games of this login (the Games row, after configured games). */
-let steamApps: ResolvedApp[] = [];
-let steamScannedAt = 0;
+/** Detected games of this login: Roblox (Sober) and installed Steam games (the Games row, after configured games). */
+let detectedGames: ResolvedApp[] = [];
+let gamesScannedAt = 0;
 const gameArtCache = new Map<string, { key: string; value: string | null }>();
 /** Shown/hidden choices from home.json, and everything Edit home screen can list. */
 let homeChoices: HomeVisibility = NO_CHOICES;
@@ -236,7 +237,7 @@ async function loadConfig(): Promise<void> {
     config = screenshotConfig(validateTheme(flagValue('demo-theme') ?? 'knowall'), flagValue('demo-cameras') ? Number(flagValue('demo-cameras')) || 0 : DEMO_SCREEN === 'camera-home' || DEMO_SCREEN === 'edit-home', validateBackground(flagValue('demo-background') ?? DEFAULT_BACKGROUND), flag('demo-games'));
     if (DEMO_DOCKER) config = withDemoDocker(config);
     configureContainers();
-    scanSteamGames(); // stand-ins only
+    scanGames(); // stand-ins only
     return;
   }
   try {
@@ -251,7 +252,7 @@ async function loadConfig(): Promise<void> {
     configError = e instanceof ConfigError ? e.message : `Couldn't read ${configPath}: ${(e as Error).message}`;
     console.error(configError);
   }
-  scanSteamGames();
+  scanGames();
   configureCameras();
   configureContainers();
   for (const w of [win, panelWin, toastWin]) {
@@ -259,18 +260,22 @@ async function loadConfig(): Promise<void> {
   }
 }
 
-/** Re-read the user's Steam library (on config load, and when Home is shown at most every 30 s). Demo: stand-ins only. */
-function scanSteamGames(): void {
-  steamScannedAt = Date.now();
-  steamApps = steamGamesRow({ on: DEMO, games: flag('demo-games') }, () => {
+/**
+ * Re-detect games: Sober (Roblox) and the user's Steam library (on config load, and when Home
+ * is shown at most every 30 s, so a game installed while Sofa runs appears). Demo: stand-ins only.
+ */
+function scanGames(): void {
+  gamesScannedAt = Date.now();
+  detectedGames = steamGamesRow({ on: DEMO, games: flag('demo-games') }, () => {
+    // Every detected game is listed (Edit home screen); [games] only decides which are shown by default.
+    const roblox = detectRoblox(config, { home: homedir() });
     try {
-      // Every installed game is listed (Edit home screen); [games] only decides which are shown by default.
       const ids = new Set(config.apps.map((a) => a.id));
       const steam = steamBinary((file) => isExecutable(file));
-      return steam ? steamGameApps(findSteamGames({ home: homedir() }), steam).filter((a) => !ids.has(a.id)) : [];
+      return [...roblox, ...(steam ? steamGameApps(findSteamGames({ home: homedir() }), steam).filter((a) => !ids.has(a.id)) : [])];
     } catch (e) {
       console.error(`Couldn't read Steam games: ${(e as Error).message}`);
-      return [];
+      return roblox;
     }
   });
   applyHome();
@@ -278,7 +283,7 @@ function scanSteamGames(): void {
 
 /** Apply config.toml, the detected games and home.json's choices to what the launcher lists and opens. */
 function applyHome(): void {
-  homeList = homeCandidates(config, steamApps).map((c) => ({ ...c, app: browserTile(c.app, browserFor(c.app)) }));
+  homeList = homeCandidates(config, detectedGames).map((c) => ({ ...c, app: browserTile(c.app, browserFor(c.app)) }));
   const { visible, launchable } = resolveHome(homeList, homeChoices);
   apps.setApps(launchable, visible);
 }
@@ -294,7 +299,7 @@ async function homeItems(): Promise<HomeItems> {
     return { ...tile, section: c.section, shown: !c.needsSetup && isShown(homeChoices, c.app.id, c.defaultShown), ...(unavailable ? { unavailable } : {}) };
   });
   const notes: HomeItems['notes'] = {};
-  if (!items.some((i) => i.section === 'games')) notes.games = 'No games found. Installed Steam games appear here, and games added to config.toml.';
+  if (!items.some((i) => i.section === 'games')) notes.games = 'No games found. Installed Steam games and Roblox (the Sober Flatpak) appear here, and games added to config.toml.';
   if (!items.some((i) => i.section === 'cameras')) {
     notes.cameras = config.homeAssistantUrl
       ? 'No cameras set up. Add [[cameras]] to config.toml to show Home Assistant cameras.'
@@ -515,7 +520,7 @@ function createWindow(opts: { show: boolean; hash?: string }): BrowserWindow {
     if (!quitting) app.quit();
   });
   w.on('focus', () => {
-    if (Date.now() - steamScannedAt > 30_000) scanSteamGames();
+    if (Date.now() - gamesScannedAt > 30_000) scanGames();
     void pushApps();
     syncCameraStills();
   });
