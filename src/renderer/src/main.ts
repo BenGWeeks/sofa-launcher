@@ -20,6 +20,12 @@ document.addEventListener('mousemove', () => {
   clearTimeout(cursorTimer);
   cursorTimer = setTimeout(() => document.documentElement.classList.remove('mouse-active'), 3000);
 });
+// An app hotkey that reaches a Sofa window (Nod.ie's talk key is Ctrl+Shift+Space) is not
+// an OK press: without this, Space would click whichever tile or button the mouse last
+// clicked, because a clicked button keeps the keyboard focus.
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ' && (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey)) e.preventDefault();
+}, true);
 document.addEventListener('keydown', () => {
   clearTimeout(cursorTimer);
   document.documentElement.classList.remove('mouse-active');

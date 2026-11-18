@@ -18,6 +18,7 @@ import { backKeyFor, backToWebApp } from './back';
 import { sendKeysToApp } from './app-keys';
 import { homeRequestWatcher } from './home-request';
 import { appsLeftForHome } from './home-pause';
+import { talkToNodie } from './nodie-talk';
 import { coverToastGate, launchCover, launchCoverTimeout, requiresFullscreen } from './launch-cover';
 import { restoreFullscreen } from './restore-fullscreen';
 import { prepareLaunchCover } from './launch-cover-window';
@@ -905,14 +906,15 @@ async function onAction(action: GlobalAction): Promise<void> {
       sendAction({ action, context, appName });
       return;
     }
-    case 'nodieTalk': {
-      const nodie = config.apps.find((a) => a.hotkeys.talk);
-      if (!nodie) return toast('Nod.ie isn’t set up');
-      await sendKeysToApp(nodie.hotkeys.talk!).then(
-        (sent) => { if (sent) toast('🎤 Nod.ie listening'); }, () => toast('Couldn’t reach Nod.ie'),
-      );
-      return;
-    }
+    case 'nodieTalk':
+      return talkToNodie({
+        app: config.apps.find((a) => a.hotkeys.talk),
+        isRunning: (id) => apps.isRunning(id),
+        launcherInFront: state.launcherInFront,
+        open: (id) => openApp(id),
+        sendKeys: sendKeysToApp,
+        toast,
+      });
     case 'input':
       if (keyboardTarget) return hidePanel(true);
       return openKeyboard();
