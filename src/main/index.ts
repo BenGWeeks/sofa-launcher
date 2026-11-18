@@ -668,16 +668,25 @@ function windowTitle(windowId: string): Promise<string> {
 }
 const watchHomeRequest = homeRequestWatcher({ title: windowTitle });
 
+/** Home pauses still looking for their player, by app id. */
+const homePauses = new Map<string, object>();
+
 async function goHome(): Promise<void> {
   pipStartGeneration++;
   guideReturnTo = null;
   // Read before showHome, which forgets the foreground app. Home pressed on Home pauses
   // nothing: Play on Home may just have resumed the last app.
-  const leaving = launcherInFront() ? [] : appsLeftForHome(pip.state, apps.lastAppId);
+  // A second Home press while a pause is still finding its player would cancel it
+  // (showHome starts a new navigation), so those unfinished pauses are asked for again.
+  const leaving = launcherInFront() ? [...homePauses.keys()] : appsLeftForHome(pip.state, apps.lastAppId);
   await showHome();
   sendAction({ action: 'home', context: 'home' });
   // Like switching apps: what you leave stops playing, and stays open where it was.
-  for (const id of leaving) void apps.pause(id);
+  for (const id of leaving) {
+    const request = {};
+    homePauses.set(id, request);
+    void apps.pause(id).finally(() => { if (homePauses.get(id) === request) homePauses.delete(id); });
+  }
 }
 
 function hideLauncher(): void {
