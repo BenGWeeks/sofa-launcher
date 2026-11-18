@@ -6,6 +6,7 @@
   } from '@shared/containers';
   import StatusGlyph from './StatusGlyph.svelte';
   import { BACK_KEYS } from './nav';
+  import RemoteIcon from './RemoteIcon.svelte';
   import { spatialMove } from './spatial-nav';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -182,7 +183,7 @@
     {/if}
   </div>
 
-  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<span class="k">↩</span>Back</footer>
+  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<span class="k"><RemoteIcon name="back" /></span>Back</footer>
 
   {#if detail}
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
@@ -196,7 +197,7 @@
         <dt>Image</dt><dd class="mono-text">{displayImage(detail.image) || '—'}</dd>
         <dt>Container</dt><dd class="mono-text">{detail.id}</dd>
       </dl>
-      <p class="hint">Read-only · <span class="k">OK</span> or <span class="k">↩</span> closes</p>
+      <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
     </aside>
   {/if}
 </div>

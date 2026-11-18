@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { AboutInfo } from '@shared/types';
   import { BACK_KEYS } from './nav';
+  import RemoteIcon from './RemoteIcon.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
   let info = $state<AboutInfo | null>(null);
@@ -29,7 +30,7 @@
         <dt>OS sandbox</dt><dd class:ok={info.sandboxed} class:bad={!info.sandboxed}>{info.sandboxed ? '✓ on' : '✗ off (dev mode?)'}</dd>
       </dl>
     {/if}
-    <p><span class="k">↩</span> Back</p>
+    <p><span class="k"><RemoteIcon name="back" /></span> Back</p>
   </div>
 </div>
 
