@@ -244,7 +244,15 @@
     {#each footerButtons as button, index}
       <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
     {/each}
-    <span class="version">v{version}</span>
+    <span class="brand">
+      <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true">
+        <rect x="88" y="128" width="336" height="228" rx="36" fill="none" stroke="currentColor" stroke-width="28"/>
+        <path d="M220 196 L312 242 L220 288 Z" fill="currentColor" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
+        <path d="M176 400 H336" stroke="currentColor" stroke-width="28" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">Sofa Launcher</span>
+      <span class="version">v{version}</span>
+    </span>
   </footer>
 </main>
 
@@ -299,7 +307,11 @@
   .empty { grid-column: 1 / -1; font-size: 1.6rem; color: var(--muted); }
   .hints { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.3rem 4rem; display: flex; gap: 2.4rem;
            font-size: 1.2rem; color: #9aa4b6; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); }
-  .version { align-self: center; font-size: 0.95rem; color: var(--muted); }
+  /* The app's own mark, quiet enough not to compete with the tiles or the footer hints. */
+  .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.55rem; white-space: nowrap; }
+  .brand-mark { width: 1.7rem; height: 1.7rem; color: var(--accent); }
+  .brand-name { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.01em; color: #c3cad8; }
+  .version { font-size: 0.95rem; color: var(--muted); }
   .right { margin-left: auto; }
   .footer-button { all:unset; display:inline-flex; align-items:center; border-radius:0.6rem; padding:0.4rem 0.6rem; margin:-0.4rem -0.6rem; }
   .footer-button.right { margin-left:auto; }
