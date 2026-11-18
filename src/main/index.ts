@@ -21,6 +21,7 @@ import { appsLeftForHome } from './home-pause';
 import { talkToNodie } from './nodie-talk';
 import { coverToastGate, launchCover, launchCoverTimeout, requiresFullscreen } from './launch-cover';
 import { restoreFullscreen } from './restore-fullscreen';
+import { IdlePointer } from './idle-pointer';
 import { prepareLaunchCover } from './launch-cover-window';
 import { parseOpenCommand, searchUrl, validateOpenCommand, type OpenCommand, type ParsedCommand } from './command';
 import { ConfigError, parseConfig, SEED_CONFIG, type Config, type ResolvedApp } from './config';
@@ -133,6 +134,8 @@ const cameraStills = new CameraStills({
 let cameraStillsKey = '';
 
 const wm: WindowManager = DEMO ? demoWindowManager() : new XdotoolWindowManager();
+/** Hides a still mouse pointer over every window, as the home screen does for itself. */
+const idlePointer = new IdlePointer(3);
 const media: MediaController = DEMO ? new FakeMediaController() : new GdbusMediaController(wm);
 const mediaKeys = new DesktopMediaKeys(join(dataDir, 'media-shortcuts.json'), {
   register: (key, callback) => globalShortcut.register(key, callback),
@@ -1591,6 +1594,8 @@ if (flag('setup-user') || flag('undo-user-setup')) {
       void pip.check();
     }, 3000);
     if (!DEMO) watchdog.start();
+    // Not in dev: a pointer that vanishes is unwelcome on a desk.
+    if (!DEMO && !DEV) idlePointer.start();
   });
   let cleanupFinished = false;
   let cleanupStarted = false;
@@ -1612,6 +1617,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
     }
   });
   app.on('will-quit', () => {
+    idlePointer.stop();
     cameraInputs?.dispose();
     watchdog.stop();
     globalShortcut.unregisterAll();

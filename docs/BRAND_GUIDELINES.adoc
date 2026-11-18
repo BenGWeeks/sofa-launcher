@@ -12,4 +12,5 @@ Keep the selected theme tick separate from the navigation highlight: exactly one
 theme is selected, while the remote may highlight either option.
 
 The mouse cursor appears when moved and hides after three idle seconds or when
-remote navigation resumes.
+remote navigation resumes. The same three-second idle rule applies over every
+other window while Sofa is running.

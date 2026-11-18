@@ -120,6 +120,10 @@ websites without arrow navigation, choose **Menu → Remote pointer**. Arrows mo
 the cursor (hold to accelerate), OK clicks, CH +/− scroll, and Back exits pointer
 mode. Home, Menu and changing the focused window also release pointer controls.
 
+While Sofa is running, the mouse pointer hides everywhere on the display after
+three seconds without movement, over apps and the desktop as well as Home, and
+returns as soon as the mouse moves. It comes back for good when Sofa quits.
+
 Closing or quitting Sofa closes apps opened or brought forward through Sofa in
 that session, including Nod.ie. Apps never opened through Sofa remain untouched.
 Set `keepOnClose = true` on an app to keep it running explicitly.
