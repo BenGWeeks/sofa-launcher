@@ -28,9 +28,11 @@ function goHomeWith(inFront: boolean, pause?: (id: string) => Promise<void>) {
   const declaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'goHome')!;
   const js = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const order: string[] = [];
+  // The function captures its ports when built, so what changes later must be read through an object.
+  const front = { value: inFront };
   const ports = {
     pipStartGeneration: 0, guideReturnTo: null,
-    launcherInFront: () => inFront,
+    launcherInFront: () => front.value,
     appsLeftForHome,
     pip: { state: { active: false } },
     homePauses: new Map<string, object>(),
@@ -39,7 +41,7 @@ function goHomeWith(inFront: boolean, pause?: (id: string) => Promise<void>) {
     sendAction: vi.fn(),
   };
   const goHome = new Function(...Object.keys(ports), `${js}; return goHome;`)(...Object.values(ports)) as () => Promise<void>;
-  return { goHome, ports, order };
+  return { goHome, ports, order, front };
 }
 
 describe('goHome', () => {
@@ -53,7 +55,7 @@ describe('goHome', () => {
     const slow = () => new Promise<void>((resolve) => { finish = resolve; });
     const f = goHomeWith(false, slow);
     await f.goHome();                       // leaves YouTube: its pause is still looking for the player
-    f.ports.launcherInFront = () => true;   // Home is now in front
+    f.front.value = true;                   // Home is now in front
     await f.goHome();                       // second press
     expect(f.ports.apps.pause).toHaveBeenCalledTimes(2);
     expect(f.ports.apps.pause).toHaveBeenLastCalledWith('youtube');
