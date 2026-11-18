@@ -127,6 +127,21 @@ after updating the extension. Development PC Chromium fixtures check host covera
 arrow selection and OK; on the TV PC arrows reached an album Play control
 and OK started advancing audio.
 
+== An app tile seems to do nothing, or an app opens twice
+
+A mouse or keyboard can take an app out of full screen (the browser's exit
+button, F11 or Esc) and then minimise or resize it with the title-bar buttons
+that appear. The window can end up a few pixels wide, so opening the tile
+activates something nobody can see. A minimised window is unmapped, so the
+visible-window search used to miss it and Sofa launched the app again, leaving
+several windows of one app.
+
+Sofa now falls back to an app's minimised windows when none is visible, and
+each open puts the window back into full screen if it has left it. The two
+windows of an app screen-in-screen pair are sized on purpose and are left
+alone. Apps that never ask for full screen (the full browser, most games) are
+not changed either.
+
 == Sofa disappears when the installer terminal closes
 
 Start the installed application in a new session using

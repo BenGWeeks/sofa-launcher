@@ -5,7 +5,10 @@ const run = promisify(execFile);
 
 /** Window operations, behind an interface so tests can use a fake. */
 export interface WindowManager {
-  /** Visible top-level X11 windows whose WM_CLASS matches `wmClass`. */
+  /**
+   * Top-level X11 windows whose WM_CLASS matches `wmClass`: the visible ones, or, when
+   * there are none, the minimised ones (activating one brings it back).
+   */
   findByClass(wmClass: string): Promise<string[]>;
   activate(windowId: string): Promise<void>;
   /** The focused top-level window, or null if there is none / it can't be read. */
@@ -27,6 +30,8 @@ export interface WindowManager {
   setTransientFor?(windowId: string, parentId: string | null): Promise<void>;
   /** Whether the window manager currently has this window in the full-screen state. */
   isFullscreen?(windowId: string): Promise<boolean>;
+  /** Ask the window manager to put this window into the full-screen state. */
+  setFullscreen?(windowId: string): Promise<void>;
   screenOff(): Promise<void>;
 }
 
@@ -50,6 +55,31 @@ else: x.XDeleteProperty(d, w, 68)  # XA_WM_TRANSIENT_FOR
 x.XSync(d, 0); x.XCloseDisplay(d)
 `;
 
+/** Stdlib ctypes + system libX11: xdotool 3.2016 has no windowstate, and wmctrl is not a dependency. */
+const FULLSCREEN_HELPER = String.raw`
+import ctypes as C, ctypes.util, sys
+x = C.CDLL(ctypes.util.find_library('X11') or 'libX11.so.6')
+x.XOpenDisplay.argtypes = [C.c_char_p]; x.XOpenDisplay.restype = C.c_void_p
+x.XInternAtom.argtypes = [C.c_void_p, C.c_char_p, C.c_int]; x.XInternAtom.restype = C.c_ulong
+x.XDefaultRootWindow.argtypes = [C.c_void_p]; x.XDefaultRootWindow.restype = C.c_ulong
+x.XSendEvent.argtypes = [C.c_void_p, C.c_ulong, C.c_int, C.c_long, C.c_void_p]
+x.XSync.argtypes = [C.c_void_p, C.c_int]; x.XCloseDisplay.argtypes = [C.c_void_p]
+class Data(C.Union): _fields_ = [('b', C.c_char * 20), ('s', C.c_short * 10), ('l', C.c_long * 5)]
+class Message(C.Structure):
+    _fields_ = [('type', C.c_int), ('serial', C.c_ulong), ('send_event', C.c_int), ('display', C.c_void_p),
+                ('window', C.c_ulong), ('message_type', C.c_ulong), ('format', C.c_int), ('data', Data)]
+class Event(C.Union): _fields_ = [('message', Message), ('pad', C.c_long * 24)]
+d = x.XOpenDisplay(None)
+if not d: sys.exit(1)
+e = Event(); m = e.message
+m.type = 33; m.send_event = 1; m.display = d; m.window = int(sys.argv[1]); m.format = 32
+m.message_type = x.XInternAtom(d, b'_NET_WM_STATE', 0)
+# _NET_WM_STATE_ADD, from a pager (source 2) so KWin applies it to a window that is not ours.
+for index, value in enumerate([1, x.XInternAtom(d, b'_NET_WM_STATE_FULLSCREEN', 0), 0, 2, 0]): m.data.l[index] = value
+x.XSendEvent(d, x.XDefaultRootWindow(d), 0, (1 << 19) | (1 << 20), C.byref(e))
+x.XSync(d, 0); x.XCloseDisplay(d)
+`;
+
 export const CLASS_RE = /^[A-Za-z0-9._-]+$/;
 export const WINDOW_ID_RE = /^\d+$/;
 
@@ -57,12 +87,31 @@ export class XdotoolWindowManager implements WindowManager {
   async findByClass(wmClass: string): Promise<string[]> {
     if (!CLASS_RE.test(wmClass)) throw new Error(`invalid wmClass: ${wmClass}`);
     // xdotool treats the pattern as a regex; anchor it so "sofa-yt" can't match "sofa-ytmusic".
+    const pattern = `^${wmClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
+    const search = async (args: string[]): Promise<string[]> => {
+      try {
+        const { stdout } = await run('xdotool', ['search', ...args, '--class', pattern]);
+        return stdout.split('\n').map((s) => s.trim()).filter((s) => WINDOW_ID_RE.test(s));
+      } catch (e) {
+        if ((e as { code?: unknown }).code === 1) return []; // xdotool exits 1 when nothing matches
+        throw e; // xdotool missing, no DISPLAY, ...: the caller decides
+      }
+    };
+    const visible = await search(['--onlyvisible']);
+    if (visible.length) return visible;
+    // A minimised window is unmapped, so --onlyvisible misses it and the app would look closed
+    // (and be launched a second time). The browser's unmapped helper windows carry no such state.
+    const minimised: string[] = [];
+    for (const id of await search([])) if (await this.isMinimised(id)) minimised.push(id);
+    return minimised;
+  }
+
+  private async isMinimised(windowId: string): Promise<boolean> {
     try {
-      const { stdout } = await run('xdotool', ['search', '--onlyvisible', '--class', `^${wmClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`]);
-      return stdout.split('\n').map((s) => s.trim()).filter((s) => WINDOW_ID_RE.test(s));
-    } catch (e) {
-      if ((e as { code?: unknown }).code === 1) return []; // xdotool exits 1 when nothing matches
-      throw e; // xdotool missing, no DISPLAY, ...: the caller decides
+      const { stdout } = await run('xprop', ['-id', windowId, '_NET_WM_STATE'], { timeout: 1000 });
+      return stdout.includes('_NET_WM_STATE_HIDDEN');
+    } catch {
+      return false;
     }
   }
 
@@ -93,6 +142,11 @@ export class XdotoolWindowManager implements WindowManager {
     } catch {
       return false;
     }
+  }
+
+  async setFullscreen(windowId: string): Promise<void> {
+    if (!WINDOW_ID_RE.test(windowId)) throw new Error(`invalid window id: ${windowId}`);
+    await run('python3', ['-I', '-c', FULLSCREEN_HELPER, windowId], { timeout: 2000 });
   }
 
   async activeWindow(): Promise<string | null> {
@@ -144,6 +198,7 @@ export class FakeWindowManager implements WindowManager {
   classes = new Map<string, string>();
   activated: string[] = [];
   transients = new Map<string, string | null>();
+  fullscreen = new Set<string>();
   active: string | null = null;
   screenOffCalls = 0;
   async findByClass(wmClass: string) {
@@ -168,6 +223,12 @@ export class FakeWindowManager implements WindowManager {
   }
   async setTransientFor(windowId: string, parentId: string | null) {
     this.transients.set(windowId, parentId);
+  }
+  async isFullscreen(windowId: string) {
+    return this.fullscreen.has(windowId);
+  }
+  async setFullscreen(windowId: string) {
+    this.fullscreen.add(windowId);
   }
   async screenOff() {
     this.screenOffCalls++;
