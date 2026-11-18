@@ -17,6 +17,7 @@ import { prepareRemoteProfile } from './browser-profile';
 import { backKeyFor, backToWebApp } from './back';
 import { sendKeysToApp } from './app-keys';
 import { homeRequestWatcher } from './home-request';
+import { appsLeftForHome } from './home-pause';
 import { coverToastGate, launchCover, launchCoverTimeout, requiresFullscreen } from './launch-cover';
 import { restoreFullscreen } from './restore-fullscreen';
 import { prepareLaunchCover } from './launch-cover-window';
@@ -670,8 +671,13 @@ const watchHomeRequest = homeRequestWatcher({ title: windowTitle });
 async function goHome(): Promise<void> {
   pipStartGeneration++;
   guideReturnTo = null;
+  // Read before showHome, which forgets the foreground app. Home pressed on Home pauses
+  // nothing: Play on Home may just have resumed the last app.
+  const leaving = launcherInFront() ? [] : appsLeftForHome(pip.state, apps.lastAppId);
   await showHome();
   sendAction({ action: 'home', context: 'home' });
+  // Like switching apps: what you leave stops playing, and stays open where it was.
+  for (const id of leaving) void apps.pause(id);
 }
 
 function hideLauncher(): void {
