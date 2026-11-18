@@ -39,4 +39,28 @@ describe('window class search', () => {
     expect(await new XdotoolWindowManager().findByClass('org.example.App')).toEqual(['42']);
     expect(execFile).toHaveBeenCalledWith('xdotool', ['search', '--onlyvisible', '--class', '^org\\.example\\.App$']);
   });
+  it('finds a minimised window when none is visible, ignoring unmapped helper windows', async () => {
+    vi.mocked(execFile).mockClear();
+    vi.mocked(execFile).mockImplementation((async (file: string, args: string[]) => {
+      if (file === 'xdotool') return { stdout: args.includes('--onlyvisible') ? '' : '7\n8\n' };
+      return { stdout: args[1] === '8' ? '_NET_WM_STATE(ATOM) = _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_STATE_HIDDEN' : '_NET_WM_STATE:  not found.' };
+    }) as never);
+    expect(await new XdotoolWindowManager().findByClass('sofa-youtube')).toEqual(['8']);
+  });
+  it('prefers visible windows without probing the others', async () => {
+    vi.mocked(execFile).mockClear();
+    vi.mocked(execFile).mockImplementation((async () => ({ stdout: '42\n' })) as never);
+    expect(await new XdotoolWindowManager().findByClass('sofa-youtube')).toEqual(['42']);
+    expect(execFile).toHaveBeenCalledTimes(1);
+  });
+  it('asks for full screen only on a validated window id', async () => {
+    vi.mocked(execFile).mockClear();
+    vi.mocked(execFile).mockImplementation((async () => ({ stdout: '' })) as never);
+    const wm = new XdotoolWindowManager();
+    await wm.setFullscreen('123');
+    const [file, args, options] = vi.mocked(execFile).mock.calls[0] as unknown as [string, string[], unknown];
+    expect([file, args[0], args[1], args.at(-1), options]).toEqual(['python3', '-I', '-c', '123', { timeout: 2000 }]);
+    expect(args[2]).toContain('_NET_WM_STATE_FULLSCREEN');
+    await expect(wm.setFullscreen('12; rm')).rejects.toThrow('invalid window id');
+  });
 });

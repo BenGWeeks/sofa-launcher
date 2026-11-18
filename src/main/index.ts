@@ -18,6 +18,7 @@ import { backKeyFor, backToWebApp } from './back';
 import { sendKeysToApp } from './app-keys';
 import { homeRequestWatcher } from './home-request';
 import { coverToastGate, launchCover, launchCoverTimeout, requiresFullscreen } from './launch-cover';
+import { restoreFullscreen } from './restore-fullscreen';
 import { prepareLaunchCover } from './launch-cover-window';
 import { parseOpenCommand, searchUrl, validateOpenCommand, type OpenCommand, type ParsedCommand } from './command';
 import { ConfigError, parseConfig, SEED_CONFIG, type Config, type ResolvedApp } from './config';
@@ -616,9 +617,15 @@ async function openApp(...args: Parameters<typeof apps.open>): ReturnType<typeof
   if (target?.type === 'containers') return openContainers(args[0]);
   const previous = pip.state;
   if (previous.active && !previous.pinned) args[1] = { ...args[1], pausePrevious: false };
+  // Inside the cover, so the cover stays up until the app is full screen again.
+  const open = async (): ReturnType<typeof apps.open> => {
+    const opened = await apps.open(...args);
+    if (opened.ok && target && !DEMO) await restoreFullscreen(target, wm, pip.state);
+    return opened;
+  };
   const result = await (launcherInFront() && !DEMO && target
-    ? coverLaunch(() => apps.open(...args), () => wm.findByClass(target.wmClass), requiresFullscreen(target), launchCoverTimeout(target))
-    : apps.open(...args));
+    ? coverLaunch(open, () => wm.findByClass(target.wmClass), requiresFullscreen(target), launchCoverTimeout(target))
+    : open());
   if (result.ok && pip.pinned && target) {
     const id = (await wm.findByClass(target.wmClass).catch(() => [])).at(-1);
     if (previous.baseId && previous.baseId !== target.id) void apps.pause(previous.baseId);

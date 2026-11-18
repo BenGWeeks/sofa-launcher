@@ -16,14 +16,16 @@ function fixture() {
   const wm = { findByClass: vi.fn(async () => ['42']) };
   const requiresFullscreen = vi.fn(() => false);
   const coverLaunch = vi.fn(async (open: () => Promise<unknown>, lookup: () => Promise<string[]>, fullscreen: boolean) => { await lookup(); expect(fullscreen).toBe(false); return open(); });
-  const open = mainFunction('openApp', { pip, apps, wm, requiresFullscreen, launchCoverTimeout: () => 8000, coverLaunch, launcherInFront: () => false, DEMO: false });
-  return { open, pip, apps, wm, target, requiresFullscreen, coverLaunch };
+  const restoreFullscreen = vi.fn(async () => false);
+  const open = mainFunction('openApp', { pip, apps, wm, requiresFullscreen, restoreFullscreen, launchCoverTimeout: () => 8000, coverLaunch, launcherInFront: () => false, DEMO: false });
+  return { open, pip, apps, wm, target, requiresFullscreen, restoreFullscreen, coverLaunch };
 }
 describe('main pinned navigation', () => {
   it('gives feedback for the pinned camera tile without reopening or changing the base', async () => {
     const f = fixture();
     expect(await f.open('camera')).toEqual({ ok: true, message: 'Already pinned' });
     expect(f.apps.open).not.toHaveBeenCalled();
+    expect(f.restoreFullscreen).not.toHaveBeenCalled();
     expect(f.pip.opened).not.toHaveBeenCalled();
   });
   it('keeps a successful open successful when the post-open window lookup fails', async () => {
@@ -33,9 +35,10 @@ describe('main pinned navigation', () => {
   });
   it('retains the cover target lookup and fullscreen flag while rebasing the camera', async () => {
     const f = fixture();
-    const open = mainFunction('openApp', { pip: f.pip, apps: f.apps, wm: f.wm, requiresFullscreen: f.requiresFullscreen, launchCoverTimeout: () => 8000, coverLaunch: f.coverLaunch, launcherInFront: () => true, DEMO: false });
+    const open = mainFunction('openApp', { pip: f.pip, apps: f.apps, wm: f.wm, requiresFullscreen: f.requiresFullscreen, restoreFullscreen: f.restoreFullscreen, launchCoverTimeout: () => 8000, coverLaunch: f.coverLaunch, launcherInFront: () => true, DEMO: false });
     expect(await open('edge')).toEqual({ ok: true });
     expect(f.coverLaunch).toHaveBeenCalledOnce();
+    expect(f.restoreFullscreen).toHaveBeenCalledWith(f.target, f.wm, f.pip.state);
     expect(f.requiresFullscreen).toHaveBeenCalledWith(f.target);
     expect(f.pip.opened).toHaveBeenCalledWith({ appId: 'edge', name: 'Edge', windowId: '42' });
   });
