@@ -16,8 +16,10 @@ export async function talkToNodie(deps: {
   if (!await deps.isRunning(app.id).catch(() => false)) {
     // From Home, the button is the way in: start Nod.ie. Over a film, leave the film alone.
     if (!deps.launcherInFront) return deps.toast(`${app.name} isn’t running · open it from Home`);
-    const result = await deps.open(app.id).catch(() => ({ ok: false as const, message: undefined }));
-    if (!result.ok) deps.toast(result.message ?? `${app.name} couldn’t start`);
+    // A failed start has already been reported by the app manager, and a bare { ok: false }
+    // also means "superseded" (Home pressed meanwhile): only pass on a message it gives.
+    const result = await deps.open(app.id).catch(() => ({ ok: false as const, message: `${app.name} couldn’t start` }));
+    if (!result.ok && result.message) deps.toast(result.message);
     return;
   }
   await deps.sendKeys(app.hotkeys.talk).then(

@@ -45,6 +45,15 @@ describe('talkToNodie', () => {
     expect(f.toast).toHaveBeenCalledExactlyOnceWith('Nodie isn’t installed');
   });
 
+  it('adds no toast of its own when the start was superseded or already reported', async () => {
+    const f = fixture({ isRunning: vi.fn(async () => false), open: vi.fn(async () => ({ ok: false })) });
+    await talkToNodie(f);
+    expect(f.toast).not.toHaveBeenCalled();
+    const thrown = fixture({ isRunning: vi.fn(async () => false), open: vi.fn(async () => { throw new Error('ipc'); }) });
+    await talkToNodie(thrown);
+    expect(thrown.toast).toHaveBeenCalledExactlyOnceWith('Nodie couldn’t start');
+  });
+
   it('says nothing was heard when the key was dropped, and reports failures', async () => {
     const dropped = fixture({ sendKeys: vi.fn(async () => false) });
     await talkToNodie(dropped);
