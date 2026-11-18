@@ -97,7 +97,7 @@ globally, on a development PC too.
 | Arrows / OK | Move / open |
 | 1–9 | Open tile 1–9 (home screen and panel) |
 | Back | Home: return to the last app · Panel: back to the app · Guide / menus: close |
-| Home | Always opens the full home screen |
+| Home | Always opens the full home screen, and pauses the app you leave |
 | ☰ Menu | Home: Settings (button test · remote guide · theme · background · edit home screen · about · quit completely) · in an app: the panel |
 | ⓘ Info | Remote guide for what's on screen now; Back or Info closes it |
 | Power | Power menu: close launcher / log off (confirmed) / screen off / cancel |
@@ -107,7 +107,9 @@ globally, on a development PC too.
 | Yellow / Blue | Move the inset to the next corner / change its size |
 
 Toasts appear in their own always-on-top window, so they show over a playing app.
-Switching apps pauses the one you leave (MPRIS). If an app the launcher opened
+Switching apps pauses the one you leave (MPRIS), and so does going Home: the app
+stays open where it was, and Play on Home resumes it. Games and Nod.ie are never
+paused. If an app the launcher opened
 loses all its windows, the home screen comes back.
 
 Opening an app from Home shows a black cover until its window is active and
