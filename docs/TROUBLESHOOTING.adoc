@@ -141,6 +141,7 @@ each open puts the window back into full screen if it has left it. The two
 windows of an app screen-in-screen pair are sized on purpose and are left
 alone. Apps that never ask for full screen (the full browser, most games) are
 not changed either.
+
 == The Nod.ie button opens another app
 
 Nod.ie's talk key (Ctrl+Shift+Space) is sent to the window in front, and Nod.ie
