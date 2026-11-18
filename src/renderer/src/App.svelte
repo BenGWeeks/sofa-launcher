@@ -267,8 +267,9 @@
   header { display: flex; justify-content: space-between; align-items: baseline; }
   .greet { font-size: 2.6rem; font-weight: 600; letter-spacing: -0.02em; }
   .greet small { display: block; font-size: 1.25rem; font-weight: 400; color: var(--muted); margin-top: 0.3rem; }
-  .clock { font-size: 3.2rem; font-weight: 300; letter-spacing: -0.03em; }
-  .clock small { font-size: 1.2rem; color: var(--muted); margin-left: 0.6rem; }
+  /* Time over date, both against the right edge, mirroring the greeting and its line on the left. */
+  .clock { font-size: 3.2rem; font-weight: 300; letter-spacing: -0.03em; text-align: right; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .clock small { display: block; font-size: 1.2rem; font-weight: 400; letter-spacing: 0; color: var(--muted); margin-top: 0.3rem; }
   .row { margin-top: 7rem; display: grid; grid-template-columns: repeat(6, 1fr); gap: 3rem 1.6rem; }
   /* Two or three rows (Apps plus Games and/or Cameras): each is one line that scrolls sideways,
      and the focus ring sits inside the tile so the scrolling row can never clip it. */
