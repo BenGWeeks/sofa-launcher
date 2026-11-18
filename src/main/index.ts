@@ -620,7 +620,7 @@ async function openApp(...args: Parameters<typeof apps.open>): ReturnType<typeof
   // Inside the cover, so the cover stays up until the app is full screen again.
   const open = async (): ReturnType<typeof apps.open> => {
     const opened = await apps.open(...args);
-    if (opened.ok && target && !DEMO) await restoreFullscreen(target, wm, pip.state);
+    if (opened.ok && target && !DEMO) await restoreFullscreen(target, wm, () => pip.state);
     return opened;
   };
   const result = await (launcherInFront() && !DEMO && target

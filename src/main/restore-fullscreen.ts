@@ -15,13 +15,19 @@ import type { WindowManager } from './windows';
 export async function restoreFullscreen(
   app: ResolvedApp,
   wm: Pick<WindowManager, 'findByClass' | 'isFullscreen' | 'setFullscreen'>,
-  pip: PipState,
+  pip: () => PipState,
 ): Promise<boolean> {
   if (!wm.isFullscreen || !wm.setFullscreen || !requiresFullscreen(app)) return false;
-  if (pip.active && !pip.pinned && [pip.baseId, pip.insetId].includes(app.id)) return false;
+  const paired = () => {
+    const state = pip();
+    return state.active && !state.pinned && [state.baseId, state.insetId].includes(app.id);
+  };
+  if (paired()) return false;
   try {
     const window = (await wm.findByClass(app.wmClass)).at(-1);
     if (!window || await wm.isFullscreen(window)) return false;
+    // Read again: a pair may have been started while the window was being looked up.
+    if (paired()) return false;
     await wm.setFullscreen(window);
     return true;
   } catch {

@@ -38,7 +38,7 @@ describe('main pinned navigation', () => {
     const open = mainFunction('openApp', { pip: f.pip, apps: f.apps, wm: f.wm, requiresFullscreen: f.requiresFullscreen, restoreFullscreen: f.restoreFullscreen, launchCoverTimeout: () => 8000, coverLaunch: f.coverLaunch, launcherInFront: () => true, DEMO: false });
     expect(await open('edge')).toEqual({ ok: true });
     expect(f.coverLaunch).toHaveBeenCalledOnce();
-    expect(f.restoreFullscreen).toHaveBeenCalledWith(f.target, f.wm, f.pip.state);
+    expect(f.restoreFullscreen).toHaveBeenCalledWith(f.target, f.wm, expect.any(Function));
     expect(f.requiresFullscreen).toHaveBeenCalledWith(f.target);
     expect(f.pip.opened).toHaveBeenCalledWith({ appId: 'edge', name: 'Edge', windowId: '42' });
   });
