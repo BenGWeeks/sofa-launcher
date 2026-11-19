@@ -96,6 +96,19 @@ const DESCRIPTIONS: Record<string, string> = {
   piper: 'Speaks the voice assistant’s replies.',
 };
 
+/** A made-up registry check: about one container in five has something newer. */
+function demoUpdate(name: string, image: string): Record<string, unknown> {
+  const h = createHash('sha256').update(`update:${name}`).digest();
+  const tag = image.split(':').pop() ?? '';
+  const Checked = '2026-11-19T06:30:00Z';
+  if (image.includes('example/')) return { Available: null, Current: tag, Latest: '', Kind: 'local', Checked };
+  const numbered = /^v?(\d+)\.(\d+)\.(\d+)/.exec(tag);
+  if (!numbered) return { Available: h[0]! % 4 === 0, Current: h.toString('hex').slice(0, 12), Latest: h.toString('hex').slice(12, 24), Kind: 'floating', Checked };
+  const newer = h[0]! % 5 === 0 || name === 'paperless-web';
+  const next = tag.replace(/^(v?\d+\.\d+\.)(\d+)/, (_m, a: string, b: string) => `${a}${Number(b) + 1}`);
+  return { Available: newer, Current: tag, Latest: newer ? next : tag, Kind: 'pinned', Checked };
+}
+
 /** A steady, made-up load for a demo container: the same every run. */
 function demoLoad(name: string): { cpu: number; mem: number } {
   const h = createHash('sha256').update(`load:${name}`).digest();
@@ -143,6 +156,7 @@ export function demoStatusEntries(): unknown[] {
     Project: project,
     Service: service,
     ...(DESCRIPTIONS[service] ? { Description: DESCRIPTIONS[service] } : {}),
+    ...(state === 'running' ? { Update: demoUpdate(name, image) } : {}),
     ...(state === 'running' || state === 'paused' ? { Cpu: demoLoad(name).cpu, Mem: demoLoad(name).mem } : {}),
   })).sort((a, b) => a.Names[0]!.localeCompare(b.Names[0]!));
 }

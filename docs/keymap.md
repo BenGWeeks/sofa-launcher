@@ -34,7 +34,7 @@ These work from anywhere, even inside Netflix.
 | ⓘ Info | Ctrl+Alt+Shift+**I** | Remote guide for what's on screen now |
 | ↩ Back | Ctrl+Alt+Shift+**K** | Back, translated per app (see pass-through table) |
 | ☰ Menu | Ctrl+Alt+Shift+**M** | On home: Settings. In an app: slide-up menu (apps, close app, camera, Talk to Nod.ie, remote guide). Menu, Back, or Up from the top row closes it |
-| ⇥ Input | Ctrl+Alt+Shift+**S** | Open the on-screen keyboard / microphone |
+| ⇥ Input | Ctrl+Alt+Shift+**S** | In an app: open the on-screen keyboard / microphone. On Home: **Switch account** (asks first, then locks this session and shows the system login screen; also in the Power menu) |
 | E | Ctrl+Alt+Shift+**E** | Subtitles on/off in the selected player, when available |
 
 ### Edit home screen

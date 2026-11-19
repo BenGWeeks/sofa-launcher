@@ -62,7 +62,8 @@ export type ActionContext = 'home' | 'app' | 'panel';
 
 /** A remote button press forwarded to the launcher window. */
 export interface ActionEvent {
-  action: GlobalAction;
+  /** A button, or 'switchAccount': Input pressed on Home. */
+  action: GlobalAction | 'switchAccount';
   context: ActionContext;
   /** The app in front (or the one the panel is over), if any. */
   appName?: string;
@@ -117,6 +118,8 @@ export interface SofaApi {
   screenOff(): Promise<void>;
   username(): Promise<string>;
   logOff(): Promise<void>;
+  /** Lock this session and show the system login screen, to sign in as someone else. */
+  switchAccount(): Promise<void>;
   quit(): Promise<void>;
   returnToLastApp(): Promise<boolean>;
   /** The configured accelerator per global action ([buttons] in config.toml). */

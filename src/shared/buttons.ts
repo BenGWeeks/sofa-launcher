@@ -144,8 +144,12 @@ export function buttonMap(accelerators: Record<GlobalAction, string>): ButtonDef
       },
     },
     {
-      id: 'input', label: 'Input', icon: 'input', action: 'input', does: 'Keyboard / microphone', key: g('input'), altKeys: [],
-      describe: all('Open the keyboard / microphone for text input'),
+      id: 'input', label: 'Input', icon: 'input', action: 'input', does: 'Keyboard / switch account', key: g('input'), altKeys: [],
+      describe: {
+        home: 'Switch account (asks first, then shows the login screen)',
+        app: 'Open the keyboard / microphone for text input',
+        panel: 'Open the keyboard / microphone for text input',
+      },
     },
     {
       id: 'e', label: 'E', icon: 'e', action: 'spareE', does: 'Subtitles on/off', key: g('spareE'), altKeys: [],
