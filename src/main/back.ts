@@ -1,7 +1,9 @@
 import type { ResolvedApp } from './config';
 
 /** Translate the remote Back button for the app in front. */
-export function backKeyFor(app: Pick<ResolvedApp, 'type'> & Partial<Pick<ResolvedApp, 'remoteNavigation' | 'url'>> | undefined): 'ctrl+shift+F8' | 'alt+Left' | 'Escape' {
+export function backKeyFor(app: Pick<ResolvedApp, 'type'> & Partial<Pick<ResolvedApp, 'remoteNavigation' | 'url' | 'group'>> | undefined): 'ctrl+shift+F8' | 'alt+Left' | 'Escape' {
+  // A browser game: Escape is its pause or menu key; history-back would leave the game.
+  if (app?.type === 'web' && app.group === 'games') return 'Escape';
   if (app?.type === 'web' && app.url) {
     const url = new URL(app.url);
     const host = url.hostname;

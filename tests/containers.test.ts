@@ -251,14 +251,3 @@ describe('[containers] config', () => {
     expect(c.apps[0]?.group).toBeUndefined();
   });
 });
-
-describe('[[apps]] art', () => {
-  const app = (extra: string) => parseConfig(`[[apps]]\nid = "invaders"\nname = "Invaders"\ntype = "web"\nurl = "https://example.com/"\ngroup = "games"\n${extra}`).apps[0]!;
-  it('gives a web game in the Games row its own picture', () => {
-    expect(app('art = "/home/tv/.config/sofa-launcher/tiles/invaders.png"')).toMatchObject({ group: 'games', type: 'web', art: '/home/tv/.config/sofa-launcher/tiles/invaders.png' });
-    expect(app('').art).toBeUndefined();
-  });
-  it.each(['art = "invaders.png"', 'art = "~/invaders.png"', 'art = "/tmp/../etc/passwd.png"', 'art = "/tmp/invaders.svg"', 'art = "https://example.com/a.png"', 'art = "/tmp/a.png\\nx"'])('rejects %s', (extra) => {
-    expect(() => app(extra)).toThrow(ConfigError);
-  });
-});

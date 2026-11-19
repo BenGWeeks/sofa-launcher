@@ -143,7 +143,7 @@ export interface ResolvedApp {
   group?: 'games';
   /** The command only asks another program (the Steam client) to start the app: never signal it. */
   handOff?: boolean;
-  /** Local artwork file (detected Steam games). */
+  /** Local artwork file (detected Steam games, or [[apps]] art). */
   art?: string;
   /** The full browser (tabs and address bar) rather than one site in app mode. */
   fullBrowser?: boolean;

@@ -300,8 +300,8 @@ group = "games"
 art = "/home/tvuser/.config/sofa-launcher/tiles/invaders.png"
 ```
 
-A browser game sees the remote as a keyboard: the arrows, OK as Enter and Back as
-Escape. A game that only fires on the Space bar needs a remote button taught to
+A browser game sees the remote as a keyboard: the arrows, OK as Enter, and Back as
+Escape (for other browser apps Back is "go back a page"). A game that only fires on the Space bar needs a remote button taught to
 send Space (in the Flirc app), or the game changed to accept Enter.
 
 OK on a Steam game runs `steam -silent -applaunch <appid>` (Steam is found on

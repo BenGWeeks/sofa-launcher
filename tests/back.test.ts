@@ -6,6 +6,10 @@ describe('backKeyFor', () => {
     expect(backKeyFor({ type: 'web' })).toBe('alt+Left');
   });
 
+  it('uses Escape for a browser game, never history back', () => {
+    expect(backKeyFor({ type: 'web', group: 'games', url: 'https://games.example/invaders/' })).toBe('Escape');
+  });
+
   it('uses Escape for desktop apps', () => {
     expect(backKeyFor({ type: 'desktop' })).toBe('Escape');
   });
