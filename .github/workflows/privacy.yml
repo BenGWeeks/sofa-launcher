@@ -3,7 +3,8 @@ name: Privacy
 # domains, addresses). The patterns live in the PRIVACY_DENYLIST repository secret, one
 # case-insensitive extended regex per line, so the list itself is never published.
 # A phrase that is public on purpose (a donation address, say) goes in the PRIVACY_ALLOWLIST
-# repository variable: exactly that phrase is then let through, nothing wider.
+# repository variable: that phrase, standing on its own, is then let through; a part of it, or a
+# longer name or address containing it, is still caught.
 # Pull requests from forks get no secrets; the check is skipped there and runs on main.
 on:
   pull_request:
@@ -25,32 +26,60 @@ jobs:
             echo "PRIVACY_DENYLIST is not available here; skipping."
             exit 0
           fi
-          patterns=$(mktemp)
-          printf '%s\n' "$DENYLIST" | sed '/^[[:space:]]*$/d' > "$patterns"
+          # Scratch files live outside the checkout, so nothing tracked can stand in for them.
+          work=$(mktemp -d)
+          printf '%s\n' "$DENYLIST" | tr -d '\r' | sed '/^[[:space:]]*$/d' > "$work/patterns"
           # Phrases that are public on purpose (PRIVACY_ALLOWLIST repository variable, one exact
-          # phrase per line, case-insensitive). Each is blanked out of a matching line before the
-          # line is tested again, so the phrase itself passes while anything around it, or a part
-          # of it on its own (a domain without the address, say), is still caught.
-          allow=$(mktemp)
-          printf '%s\n' "$ALLOWLIST" | sed '/^[[:space:]]*$/d' > "$allow"
-          # -I skips binary files; only file names and line numbers are printed,
-          # never the matching text, so the private patterns stay out of the log.
-          git grep -I -n -i -E -f "$patterns" -- . ':!package-lock.json' > raw.txt || true
-          awk -v allow="$allow" '
+          # phrase per line, case-insensitive). See the allow-list step below.
+          printf '%s\n' "${ALLOWLIST:-}" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; /^$/d' > "$work/allow"
+          if grep -q -v -E '^.{12,}$' "$work/allow"; then
+            echo "::error::PRIVACY_ALLOWLIST: every phrase must be at least 12 characters, so it cannot switch a pattern off."
+            exit 1
+          fi
+          # -I skips binary files. Only file names and line numbers are ever printed, never the
+          # matching text, so the private patterns stay out of the log (stderr could name one).
+          status=0
+          git grep -I -n -i -E -f "$work/patterns" -- . ':!package-lock.json' > "$work/raw" 2>/dev/null || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "::error::The privacy scan could not run (a pattern in PRIVACY_DENYLIST may be invalid)."
+            exit 1
+          fi
+          # Allow-list. A line with no allowed phrase is a hit, exactly as before. In a line that
+          # has one, each occurrence standing on its own (not part of a longer name, address or
+          # host) is blanked out and the rest of the line is tested again: the phrase passes,
+          # while a part of it on its own, a longer string containing it, or anything else on
+          # the line is still caught.
+          awk -v allow="$work/allow" -v hits="$work/hits" -v where2="$work/where" -v text2="$work/text" '
             BEGIN { while ((getline phrase < allow) > 0) if (phrase != "") phrases[++n] = tolower(phrase) }
             {
-              match($0, /^[^:]*:[0-9]+:/)
-              where = substr($0, 1, RLENGTH - 1); text = substr($0, RLENGTH + 1)
-              for (i = 1; i <= n; i++)
-                while ((at = index(tolower(text), phrases[i])) > 0)
-                  text = substr(text, 1, at - 1) " " substr(text, at + length(phrases[i]))
-              print where > "where.txt"; print text > "text.txt"
-            }' raw.txt
-          touch where.txt text.txt
-          grep -n -i -E -f "$patterns" text.txt | cut -d: -f1 | while read -r n; do sed -n "${n}p" where.txt; done > hits.txt || true
-          if [ -s hits.txt ]; then
+              if (match($0, /^[^:]*:[0-9]+:/)) { where = substr($0, 1, RLENGTH - 1); text = substr($0, RLENGTH + 1) }
+              else { where = "(a file whose name contains a colon)"; text = $0 }
+              blanked = 0
+              for (i = 1; i <= n; i++) {
+                len = length(phrases[i]); from = 1
+                while ((at = index(tolower(substr(text, from)), phrases[i])) > 0) {
+                  at += from - 1
+                  before = at > 1 ? substr(text, at - 1, 1) : ""
+                  after = substr(text, at + len, 1); after2 = substr(text, at + len + 1, 1)
+                  if (before ~ /[A-Za-z0-9._%+\/-]/ || after ~ /[A-Za-z0-9_@\/:-]/ || (after == "." && after2 ~ /[A-Za-z0-9]/)) { from = at + 1; continue }
+                  text = substr(text, 1, at - 1) " " substr(text, at + len); blanked = 1; from = at + 1
+                }
+              }
+              if (!blanked) print where > hits
+              else { print where > where2; print text > text2 }
+            }' "$work/raw"
+          touch "$work/hits" "$work/where" "$work/text"
+          # -a: a stray byte must never turn the answer into "binary file matches".
+          status=0
+          grep -a -n -i -E -f "$work/patterns" "$work/text" > "$work/again" 2>/dev/null || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "::error::The privacy scan could not re-test the allow-listed lines."
+            exit 1
+          fi
+          cut -d: -f1 "$work/again" | while read -r n; do sed -n "${n}p" "$work/where"; done >> "$work/hits"
+          if [ -s "$work/hits" ]; then
             echo "::error::Private details found (file:line). Replace them with placeholders, see CONTRIBUTING.md."
-            cat hits.txt
+            cat "$work/hits"
             exit 1
           fi
           echo "No private details found."

@@ -19,7 +19,8 @@ and screenshots, can be read by anyone and stays in the history.
   usernames, camera names or family members' names. Real values go in your local
   `~/.config/sofa-launcher/config.toml`, not in the repo.
   A detail the maintainer has made public on purpose (the donation address on the About screen) is
-  let through by exact phrase, from the `PRIVACY_ALLOWLIST` repository variable; nothing wider passes.
+  let through by exact phrase, from the `PRIVACY_ALLOWLIST` repository variable. Only the phrase standing
+  on its own passes: a part of it, or a longer name or address containing it, is still caught.
 - **Check screenshots and recordings before committing.** Use demo mode (`npm run screenshot` uses demo
   data). Real screenshots can leak tile names, camera views, notifications, email addresses or account names.
 - **If a secret is ever committed, treat it as leaked**, even if you delete it in a later commit, because it
