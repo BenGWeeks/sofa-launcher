@@ -29,7 +29,7 @@ import { parseOpenCommand, searchUrl, validateOpenCommand, type OpenCommand, typ
 import { ConfigError, parseConfig, SEED_CONFIG, type Config, type ResolvedApp } from './config';
 import { validateBackground, validateTheme, validateBrowser, writeBackground, writeTheme, writeBrowser } from './config-writer';
 import { Debouncer } from './debounce';
-import { DEMO_STEAM_GAMES, demoArtBitmap, demoCameraHasStill, demoCameraStillBitmap, isDemoMode, screenshotConfig, steamGamesRow } from './demo';
+import { DEMO_CAMERA_ART, DEMO_STEAM_GAMES, demoArtBitmap, demoCameraHasStill, demoCameraStillBitmap, isDemoMode, screenshotConfig, steamGamesRow } from './demo';
 import { CameraStills } from './camera-stills';
 import { detectRoblox } from './sober';
 import { findSteamGames, steamBinary, steamGameApps } from './steam';
@@ -347,6 +347,8 @@ function gameArt(appId: string): string | null {
   if (!game || game.group !== 'games') return null;
   const demo = DEMO ? DEMO_STEAM_GAMES.find((g) => `steam-${g.appId}` === appId) : undefined;
   if (demo) {
+    const picture = demo.art ? artDataUrl(demoArtFile(demo.art)) : null;
+    if (picture) return picture;
     if (demo.hue === undefined) return null;
     const cached = gameArtCache.get(appId);
     if (cached) return cached.value;
@@ -377,6 +379,9 @@ function gameArt(appId: string): string | null {
   return null;
 }
 
+/** A demo picture in the repository's docs/demo-art (absent from the packaged app). */
+const demoArtFile = (name: string) => join(app.getAppPath(), 'docs', 'demo-art', name);
+
 /** A picture file as a small JPEG data URL, or null if it can't be read (cached until the file changes). */
 function artDataUrl(file: string): string | null {
   let key: string;
@@ -400,7 +405,10 @@ function demoCameraStill(appId: string): string | null {
   if (!DEMO) return null;
   if (!demoStills.has(appId)) {
     const index = Number(/^camera-demo-(\d{1,2})$/.exec(appId)?.[1] ?? NaN);
-    const image = demoCameraHasStill(appId) ? nativeImage.createFromBitmap(demoCameraStillBitmap(index), { width: 480, height: 270 }) : null;
+    const file = DEMO_CAMERA_ART[index];
+    const photo = file && demoCameraHasStill(appId) && existsSync(demoArtFile(file)) ? nativeImage.createFromPath(demoArtFile(file)).resize({ width: 480, quality: 'good' }) : null;
+    const image = photo && !photo.isEmpty() ? photo
+      : demoCameraHasStill(appId) ? nativeImage.createFromBitmap(demoCameraStillBitmap(index), { width: 480, height: 270 }) : null;
     demoStills.set(appId, image ? `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}` : null);
   }
   return demoStills.get(appId) ?? null;

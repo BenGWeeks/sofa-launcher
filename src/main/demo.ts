@@ -29,15 +29,26 @@ export function screenshotConfig(theme: Theme = 'knowall', cameras: boolean | nu
 }
 
 /** Fictional Steam games for screenshots (`--demo-games`). Art is generated, never real cover art. */
-export const DEMO_STEAM_GAMES: (SteamGame & { hue?: number })[] = [
-  { appId: '9000001', name: 'Starfall Drift', lastPlayed: 7, hue: 265 },
-  { appId: '9000002', name: 'Cobalt Harbour', lastPlayed: 6, hue: 205 },
-  { appId: '9000003', name: 'Tiny Kingdoms', lastPlayed: 5, hue: 120 },
-  { appId: '9000004', name: 'Neon Kart Rally', lastPlayed: 4, hue: 320 },
+/**
+ * `art`: a picture in docs/demo-art (see its README: made for this project, except Space
+ * Zappers' own banner). The repository has them; the packaged app does not, and falls back to
+ * `hue` (a gradient) or the name.
+ */
+export const DEMO_STEAM_GAMES: (SteamGame & { hue?: number; art?: string })[] = [
+  { appId: '9000001', name: 'World of Warships', lastPlayed: 7, hue: 205, art: 'game-warships.jpg' },
+  { appId: '9000002', name: 'Grand Theft Auto VI', lastPlayed: 6, hue: 320, art: 'game-city.jpg' },
+  { appId: '9000003', name: 'Space Zappers', lastPlayed: 5, hue: 120, art: 'game-space-zappers.jpg' },
+  { appId: '9000004', name: 'Tiny Kingdoms', lastPlayed: 4, hue: 100, art: 'game-farm.jpg' },
   { appId: '9000005', name: 'Moss & Lantern', lastPlayed: 3 },
-  { appId: '9000006', name: 'Deep Field', lastPlayed: 2, hue: 25 },
+  { appId: '9000006', name: 'Block Valley', lastPlayed: 2, hue: 25, art: 'game-blocks.jpg' },
   { appId: '9000007', name: 'Paper Planets', lastPlayed: 1 },
 ];
+
+/** The demo cameras' pictures in docs/demo-art, by camera number (those without one draw a placeholder). */
+export const DEMO_CAMERA_ART: Record<number, string> = {
+  0: 'camera-front-door.jpg', 2: 'camera-garden.jpg', 3: 'camera-driveway.jpg',
+  5: 'camera-side-gate.jpg', 6: 'camera-patio.jpg', 8: 'camera-nursery.jpg',
+};
 
 /** The stand-ins' launch command: not a real program, so it could never reach the Steam client. */
 export const DEMO_STEAM_COMMAND = 'sofa-demo-steam';
