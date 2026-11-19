@@ -250,8 +250,10 @@
         <path d="M220 196 L312 242 L220 288 Z" fill="currentColor" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
         <path d="M176 400 H336" stroke="currentColor" stroke-width="28" stroke-linecap="round"/>
       </svg>
-      <span class="brand-name">Sofa Launcher</span>
-      <span class="version">v{version}</span>
+      <span class="brand-text">
+        <span class="brand-name">Sofa Launcher</span>
+        <span class="version">v{version}</span>
+      </span>
     </span>
   </footer>
 </main>
@@ -310,8 +312,9 @@
   /* The app's own mark, quiet enough not to compete with the tiles or the footer hints. */
   .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.55rem; white-space: nowrap; }
   .brand-mark { width: 1.7rem; height: 1.7rem; color: var(--accent); }
+  .brand-text { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
   .brand-name { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.01em; color: #c3cad8; }
-  .version { font-size: 0.95rem; color: var(--muted); }
+  .version { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   .right { margin-left: auto; }
   .footer-button { all:unset; display:inline-flex; align-items:center; border-radius:0.6rem; padding:0.4rem 0.6rem; margin:-0.4rem -0.6rem; }
   .footer-button.right { margin-left:auto; }
