@@ -400,7 +400,7 @@ no other Docker command). The launcher still never talks to Docker; it sends
 
 ```bash
 sudo groupadd --system sofa-docker
-sudo gpasswd -a benweeks sofa-docker        # each account that may restart; log out and in again
+sudo gpasswd -a tvuser sofa-docker          # each account that may restart; log out and in again
 sudo install -m 755 docs/examples/container-restart/sofa-container-restart /usr/local/sbin/
 sudo install -m 644 docs/examples/container-restart/sofa-container-restart.socket \
                     docs/examples/container-restart/sofa-container-restart@.service /etc/systemd/system/
