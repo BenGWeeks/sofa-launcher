@@ -21,6 +21,7 @@ const api: SofaApi = {
   closeLauncher: () => ipcRenderer.invoke('launcher:close'),
   username: () => ipcRenderer.invoke('launcher:username'),
   logOff: () => ipcRenderer.invoke('launcher:logOff'),
+  switchAccount: () => ipcRenderer.invoke('launcher:switchAccount'),
   screenOff: () => ipcRenderer.invoke('launcher:screenOff'),
   quit: () => ipcRenderer.invoke('launcher:quit'),
   returnToLastApp: () => ipcRenderer.invoke('launcher:lastApp'),

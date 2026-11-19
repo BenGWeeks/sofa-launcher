@@ -39,7 +39,7 @@ import { HOME_FILE, NO_CHOICES, isHomeId, isShown, readHomeVisibility, withChoic
 import { DEFAULT_BACKGROUND } from '@shared/backgrounds';
 import { FakeMediaController, GdbusMediaController, type MediaController } from './mpris';
 import { contextFor, decideMenu } from './panel-logic';
-import { logOff } from './power';
+import { logOff, switchAccount } from './power';
 import { RemotePointer } from './pointer';
 import { PipManager } from './pip';
 import { pinCamera } from './pinned-camera';
@@ -953,6 +953,8 @@ async function onAction(action: GlobalAction): Promise<void> {
       });
     case 'input':
       if (keyboardTarget) return hidePanel(true);
+      // On Home there is nothing to type into: Input offers the other accounts instead.
+      if (state.launcherInFront && !panelOpen()) { sendAction({ action: 'switchAccount', context: 'home' }); return; }
       return openKeyboard();
     case 'spareE': {
       if (state.launcherInFront || state.panelOpen) return toast('E turns subtitles on/off while watching a video');
@@ -1203,6 +1205,17 @@ function registerIpc(): void {
       throw new Error('Log off failed');
     }
   });
+  handle('launcher:switchAccount', async () => {
+    if (DEMO) return toast('Switching account is disabled in demo mode');
+    try {
+      await switchAccount(process.env.XDG_SESSION_ID, process.env.XDG_SEAT_PATH, ({ file, args }) => new Promise<void>((resolve, reject) => {
+        execFile(file, args, { timeout: 10_000 }, (err) => err ? reject(err) : resolve());
+      }));
+    } catch {
+      toast('Couldn’t show the login screen');
+      throw new Error('Switch account failed');
+    }
+  });
   handle('launcher:quit', () => {
     quitting = true;
     app.quit();
@@ -1354,12 +1367,13 @@ async function runSelfCheck(): Promise<void> {
 async function runScreenshot(path: string): Promise<void> {
   const w = win!;
   await new Promise<void>((r) => w.webContents.once('did-finish-load', () => r()));
-  const demoAction = flagValue('demo-action') as GlobalAction | undefined;
+  const demoAction = flagValue('demo-action') as GlobalAction | 'switchAccount' | undefined;
   if (demoAction === 'info') setTimeout(() => sendAction({ action: 'info', context: 'app', appName: 'Netflix' }), 400);
   else if (demoAction) setTimeout(() => sendAction({ action: demoAction, context: 'home' }), 400);
   await new Promise((r) => setTimeout(r, 1200));
   if (flag('demo-confirm-logout')) {
     await w.webContents.executeJavaScript(`
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     `);

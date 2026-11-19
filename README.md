@@ -100,7 +100,8 @@ globally, on a development PC too.
 | Home | Always opens the full home screen, and pauses the app you leave |
 | ☰ Menu | Home: Settings (button test · remote guide · theme · background · edit home screen · about · quit completely) · in an app: the panel |
 | ⓘ Info | Remote guide for what's on screen now; Back or Info closes it |
-| Power | Power menu: close launcher / log off (confirmed) / screen off / cancel |
+| Power | Power menu: close launcher (back to the desktop) / switch account (confirmed) / log off (confirmed) / screen off / cancel |
+| Input | On Home: **Switch account**. Asks first, then locks this session and shows the system login screen, where the next person signs in as usual. The launcher never handles a password. For another account to land on its own Sofa home, run `sofa-launcher --setup-user` once as that account |
 | ● Record | Nod.ie talk |
 | Red | Choose the main and inset apps; stop screen-in-screen when active |
 | Green | Switch remote controls between the main and inset apps |
@@ -379,6 +380,13 @@ worst status seen in it, so a short outage stays visible. Time the launcher was 
 running, or the file was stale, is drawn as **No reading**, never guessed.
 
 ![A container's details: description, status over 24 hours, CPU and memory](docs/screenshots/containers-details.png)
+
+**Updates.** If the status file carries an `Update` object for a container
+(`{"Available": true, "Current": "1.2.3", "Latest": "1.2.4", "Kind": "pinned", "Checked": "2026-11-19T04:30:00Z"}`;
+`Kind` is `pinned`, `floating` or `local`, and `Available` may be `null` when
+nothing could be compared), its card gets an arrow-in-a-ring marker, the header
+counts the updates, and the details panel shows the versions and when the
+registry was checked. The launcher only displays this: it never updates anything.
 
 **Restarting a container (optional, for chosen accounts only).** The view is
 read-only unless you set up the restart service in

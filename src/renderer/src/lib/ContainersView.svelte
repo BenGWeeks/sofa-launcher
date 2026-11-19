@@ -136,6 +136,7 @@
     return map;
   });
   const counts = $derived(countParts(snap?.containers ?? []));
+  const updates = $derived((snap?.containers ?? []).filter((c) => c.update?.available).length);
   /** Hide the heading when everything is in one unnamed group (no compose data published). */
   const headings = $derived(!(groups.length === 1 && groups[0]!.name === OTHER_GROUP));
   const dim = $derived(!!snap && (!!snap.error || snap.stale));
@@ -221,6 +222,11 @@
   </span>
 {/snippet}
 
+<!-- "A newer image exists": an arrow in a ring, always beside or labelled with words. -->
+{#snippet arrow()}
+  <svg class="up" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M12 17V8m-4 3.5L12 7.5l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+{/snippet}
+
 {#snippet badge(colour: ContainerColour, word: string)}
   <span class="badge {colour}"><StatusGlyph {colour} /><b>{word}</b></span>
 {/snippet}
@@ -233,6 +239,7 @@
       <h1>Containers</h1>
       <p class="counts">
         {#each counts as part, i}{#if i}<span class="sep">·</span>{/if}<span class="count {part.colour}"><StatusGlyph colour={part.colour} />{part.text}</span>{/each}
+        {#if updates}<span class="sep">·</span><span class="count newer">{@render arrow()}{updates} {updates === 1 ? 'update' : 'updates'}</span>{/if}
       </p>
     </div>
     <div class="updated">
@@ -270,6 +277,7 @@
                   <button class="card {c.colour}" class:focused={offset + i === focus} tabindex="-1"
                     onclick={() => { if (!restarting) { focus = offset + i; openDetail(c); } }}>
                     {@render icon(c, label)}
+                    {#if c.update?.available}<span class="newer corner" title="Update available">{@render arrow()}<span class="sr">Update available</span></span>{/if}
                     <span class="text">
                       <span class="name">{label}</span>
                       <span class="sub">{c.description || repo(c)}</span>
@@ -297,7 +305,17 @@
         {#if detail.project}<dt>Stack</dt><dd>{detail.project}</dd>{/if}
         {#if detail.service}<dt>Service</dt><dd>{detail.service}</dd>{/if}
         <dt>Image</dt><dd class="mono-text">{displayImage(detail.image) || '—'}</dd>
-        <dt>Container</dt><dd class="mono-text">{detail.id}</dd>
+        {#if detail.update && detail.update.available !== null}
+          {@const u = detail.update}
+          <dt>Update</dt>
+          <dd>
+            {#if u.available}
+              <span class="newer inline">{@render arrow()}Available</span>
+              {#if u.kind === 'pinned' && u.latest}<span class="mono-text">{u.current || '?'} → {u.latest}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
+            {:else}Up to date{/if}
+            {#if u.checkedAt}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
+          </dd>
+        {/if}
       </dl>
       {#if history && history.coveredMs}
         <section class="history" aria-label="Last 24 hours">
@@ -411,7 +429,7 @@
        border-radius: 0.45rem; background: #222a38; color: #fff; font-weight: 700; font-size: 0.95rem; }
   footer .k:first-child { margin-left: 0; }
 
-  .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 2rem 2.4rem 1.4rem; overflow: hidden; background: #121722;
+  .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 1.6rem 2.4rem 1.2rem; overflow: hidden; background: #121722;
             box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
   h3 { margin: 0; font-size: 2rem; word-break: break-word; }
@@ -422,6 +440,15 @@
   dd { margin: 0; word-break: break-word; }
   .mono-text { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 1.05rem; }
   /* Three lines at most: the panel cannot scroll, and the charts below must stay on screen. */
+  /* Updates: the blue of the usage lines, never a status colour (an update is not a fault). */
+  .newer { color: #6aa9ff; }
+  .up { width: 1.35rem; height: 1.35rem; flex-shrink: 0; }
+  .corner { position: absolute; top: 0.35rem; right: 0.4rem; display: flex; }
+  .corner .up { width: 1.25rem; height: 1.25rem; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .inline { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; margin-right: 0.6rem; }
+  .quiet { color: var(--muted); }
+  dd small { display: block; font-size: 1rem; margin-top: 0.1rem; }
   .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
            -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
   /* History: status colours are the view's own (always beside a glyph and word in the legend);
@@ -441,7 +468,7 @@
   .usage p { margin: 0 0 0.25rem; display: flex; align-items: baseline; gap: 0.8rem; font-size: 1.1rem; }
   .usage b { font-weight: 700; }
   .usage .peak { margin-left: auto; color: var(--muted); font-size: 1rem; }
-  .usage svg { display: block; width: 100%; height: 2.9rem; }
+  .usage svg { display: block; width: 100%; height: 2.5rem; }
   .usage .trace { fill: none; stroke: #6aa9ff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
   .usage .area { fill: rgba(106, 169, 255, 0.14); }
   .usage .base { stroke: #2c3546; stroke-width: 1; vector-effect: non-scaling-stroke; }

@@ -152,3 +152,20 @@ esac
       expect(r.calls).toBe('');
     });
 });
+
+describe('status file: Update', () => {
+  const update = (Update: unknown) => parseEntry({ Id: 'a'.repeat(64), Names: ['/web'], State: 'running', Status: 'Up', Update })!.update;
+  it('reads a registry check', () => {
+    expect(update({ Available: true, Current: 'v0.21.8-beta', Latest: 'v0.21.9-beta', Kind: 'pinned', Checked: '2026-11-19T04:30:00Z' }))
+      .toEqual({ available: true, current: 'v0.21.8-beta', latest: 'v0.21.9-beta', kind: 'pinned', checkedAt: Date.parse('2026-11-19T04:30:00Z') });
+    expect(update({ Available: null, Current: '', Latest: '', Kind: 'local' })).toEqual({ available: null, current: '', latest: '', kind: 'local', checkedAt: null });
+  });
+  it('treats a missing or malformed check as unknown', () => {
+    expect(update(undefined)).toBeNull();
+    expect(update('yes')).toBeNull();
+    expect(update([true])).toBeNull();
+    expect(update({ Available: 'true', Current: 5, Latest: 'v1 \u202e<b>', Kind: 'weird', Checked: 'yesterday' }))
+      .toEqual({ available: null, current: '', latest: 'v1<b>', kind: 'unknown', checkedAt: null });
+    expect(update({ Available: true, Latest: 'x'.repeat(200) })!.latest).toHaveLength(64);
+  });
+});

@@ -32,3 +32,30 @@ describe('logout command plans', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 });
+
+import { greeterCommand, lockCommand, switchAccount } from '../src/main/power';
+
+describe('switch account', () => {
+  const greeter = (seat: string) => ({ file: 'dbus-send', args: ['--system', '--print-reply', '--dest=org.freedesktop.DisplayManager', seat, 'org.freedesktop.DisplayManager.Seat.SwitchToGreeter'] });
+  it('locks this session, then asks for the login screen', async () => {
+    const run = vi.fn().mockResolvedValue(undefined);
+    await switchAccount('c2', '/org/freedesktop/DisplayManager/Seat1', run);
+    expect(run.mock.calls).toEqual([[{ file: 'loginctl', args: ['lock-session', 'c2'] }], [greeter('/org/freedesktop/DisplayManager/Seat1')]]);
+  });
+  it('never shows the login screen over a session it could not lock', async () => {
+    const run = vi.fn().mockRejectedValue(new Error('no loginctl'));
+    await expect(switchAccount('c2', undefined, run)).rejects.toThrow();
+    expect(run).toHaveBeenCalledTimes(1);
+    const never = vi.fn();
+    await expect(switchAccount('1;reboot', undefined, never)).rejects.toThrow();
+    await expect(switchAccount(undefined, undefined, never)).rejects.toThrow();
+    expect(never).not.toHaveBeenCalled();
+  });
+  it.each([undefined, '', '/org/freedesktop/DisplayManager/Seat0 --x', '/evil', '/org/freedesktop/DisplayManager/Seat0/../x'])('uses the first seat for seat path %s', (seat) => {
+    expect(greeterCommand(seat)).toEqual(greeter('/org/freedesktop/DisplayManager/Seat0'));
+  });
+  it('rejects an odd session id', () => {
+    expect(lockCommand('-1')).toBeNull();
+    expect(lockCommand('3')).toEqual({ file: 'loginctl', args: ['lock-session', '3'] });
+  });
+});

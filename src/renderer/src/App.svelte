@@ -72,6 +72,8 @@
     { action: 'power', icon: 'power', label: 'Power' },
   ] as const;
   let power = $state(false);
+  /** The power menu opened straight at "Switch account?" (Input on Home). */
+  let powerStart = $state<'switch' | null>(null);
   let menu = $state(false);
   let screen = $state<Screen>('home');
   let pipBaseId = $state<string | undefined>();
@@ -131,7 +133,14 @@
       case 'power':
         menu = false;
         if (screen !== 'home') screen = 'home';
+        powerStart = null;
         power = !power;
+        return;
+      case 'switchAccount':
+        if (screen !== 'home' || menu) return;
+        if (power) { power = false; return; }
+        powerStart = 'switch';
+        power = true;
         return;
       case 'menu':
         power = false;
@@ -258,7 +267,7 @@
   </footer>
 </main>
 
-{#if power}<PowerMenu onclose={() => (power = false)} />{/if}
+{#if power}<PowerMenu start={powerStart} onclose={() => (power = false)} />{/if}
 {#if menu}
   <SettingsMenu
     onclose={() => (menu = false)}

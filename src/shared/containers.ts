@@ -32,6 +32,19 @@ export interface ContainerInfo {
   mem: number | null;
   /** False when the status file marks the container as not to be restarted from the launcher. */
   restartable: boolean;
+  /** What a registry check found about a newer image; null when the file has no check for it. */
+  update: ContainerUpdate | null;
+}
+
+export interface ContainerUpdate {
+  /** A newer image exists; null when it could not be compared (a local build, a failed lookup). */
+  available: boolean | null;
+  /** Version tags ("v1.2.3") for a pinned image, short digests for a floating tag; may be empty. */
+  current: string;
+  latest: string;
+  kind: 'pinned' | 'floating' | 'local' | 'unknown';
+  /** When the registry was last checked (epoch ms); null if not said. */
+  checkedAt: number | null;
 }
 
 /** One slice of a container's history (HISTORY_BUCKET_MS long). */
@@ -114,6 +127,24 @@ function amount(value: unknown, max: number): number | null {
 }
 
 export const NAME_PATTERN = NAME;
+
+const UPDATE_KINDS = new Set(['pinned', 'floating', 'local']);
+/** A version tag or digest for display: printable ASCII without spaces, capped. */
+const version = (value: unknown) => (text(value, 64) ?? '').replace(/[^\x21-\x7e]/g, '');
+
+/** The optional `Update` object of a status-file entry. */
+export function parseUpdate(raw: unknown): ContainerUpdate | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const checked = typeof r.Checked === 'string' && r.Checked.length <= 40 ? Date.parse(r.Checked) : NaN;
+  return {
+    available: typeof r.Available === 'boolean' ? r.Available : null,
+    current: version(r.Current),
+    latest: version(r.Latest),
+    kind: typeof r.Kind === 'string' && UPDATE_KINDS.has(r.Kind) ? r.Kind as ContainerUpdate['kind'] : 'unknown',
+    checkedAt: Number.isFinite(checked) ? checked : null,
+  };
+}
 
 /** "Exited (137) 36 hours ago" → 137; null if the text has no exit code. */
 export function exitCode(status: string): number | null {
@@ -208,6 +239,7 @@ export function parseEntry(raw: unknown): ContainerInfo | null {
     cpu: amount(r.Cpu, 100_000),
     mem: amount(r.Mem, 2 ** 50),
     restartable: r.Restartable !== false,
+    update: parseUpdate(r.Update),
   };
 }
 
