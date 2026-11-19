@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import {
     countParts, displayImage, groupContainers, iconFor, monogram, OTHER_GROUP, packGroups, shortName,
-    type ContainerColour, type ContainerInfo, type ContainersSnapshot,
+    type ContainerColour, type ContainerHistorySeries, type ContainerInfo, type ContainersSnapshot,
   } from '@shared/containers';
   import StatusGlyph from './StatusGlyph.svelte';
   import { BACK_KEYS } from './nav';
@@ -26,6 +26,60 @@
   let focus = $state(0);
   let detail = $state<ContainerInfo | null>(null);
   let grid = $state<HTMLElement>();
+  /** The open container's last 24 hours (null until read, or when the launcher has none). */
+  let history = $state<ContainerHistorySeries | null>(null);
+  let historyFor = '';
+
+  async function loadHistory() {
+    const name = detail?.name ?? '';
+    if (name !== historyFor) { history = null; historyFor = name; }
+    if (!name) return;
+    const next = await window.sofaContainers.history(name).catch(() => null);
+    if (detail?.name === name) history = next;
+  }
+  $effect(() => { void detail?.name; void loadHistory(); });
+  let polls = 0;
+
+  const STATUS_WORDS: Record<ContainerColour, string> = { green: 'Running', amber: 'Not ready', red: 'Problem', grey: 'Stopped' };
+  const ORDER: ContainerColour[] = ['green', 'amber', 'red', 'grey'];
+  /** The strip as runs of one status, so neighbouring slices draw as one block. */
+  const runs = $derived.by(() => {
+    const out: { colour: ContainerColour | null; from: number; length: number }[] = [];
+    for (const [i, p] of (history?.points ?? []).entries()) {
+      const last = out.at(-1);
+      if (last && last.colour === p.colour) last.length++; else out.push({ colour: p.colour, from: i, length: 1 });
+    }
+    return out;
+  });
+  const seen = $derived(ORDER.filter((c) => history?.points.some((p) => p.colour === c)));
+  const gaps = $derived(!!history?.points.some((p) => p.colour === null));
+  const recorded = $derived(history ? history.coveredMs / 3_600_000 : 0);
+  /** Rounded down, so 99.96% never reads as 100%. */
+  const percent = (v: number) => (v >= 100 ? '100' : (Math.floor(v * 10) / 10).toFixed(1));
+  const cpuText = (v: number) => `${v < 10 ? v.toFixed(1) : Math.round(v)}%`;
+  const memText = (v: number) => (v >= 2 ** 30 ? `${(v / 2 ** 30).toFixed(1)} GB` : `${Math.max(1, Math.round(v / 2 ** 20))} MB`);
+
+  /** A line (and the area under it) over the 24 hours; slices without a value break the line. */
+  function trace(key: 'cpu' | 'mem') {
+    const values = (history?.points ?? []).map((p) => p[key]);
+    const known = values.filter((v): v is number => v !== null);
+    if (known.length < 2) return null;
+    const peak = Math.max(...known), top = peak || 1;
+    const y = (v: number) => 38 - (v / top) * 34;
+    let line = '', area = '', open = false, startX = 0, lastX = 0;
+    values.forEach((v, i) => {
+      const x = i + 0.5;
+      if (v === null) { if (open) { area += `L${lastX} 38L${startX} 38Z`; open = false; } return; }
+      line += `${open ? 'L' : 'M'}${x} ${y(v).toFixed(2)}`;
+      area += `${open ? 'L' : 'M'}${x} ${y(v).toFixed(2)}`;
+      if (!open) { startX = x; open = true; }
+      lastX = x;
+    });
+    if (open) area += `L${lastX} 38L${startX} 38Z`;
+    return { line, area, peak };
+  }
+  const cpu = $derived(trace('cpu'));
+  const mem = $derived(trace('mem'));
 
   const groups = $derived(groupContainers(snap?.containers ?? []));
   const rows = $derived(packGroups(groups, COLS));
@@ -59,6 +113,8 @@
       const next = await window.sofaContainers.snapshot(fresh);
       const focusedId = cards[focus]?.id;
       snap = next;
+      // The history gains a reading a minute: no need to redraw it on every 10 s poll.
+      if (++polls % 6 === 0) void loadHistory();
       await tick();
       // Keep the highlight on the same container across refreshes (the order can change).
       const i = focusedId ? cards.findIndex((c) => c.id === focusedId) : -1;
@@ -170,7 +226,7 @@
                     {@render icon(c, label)}
                     <span class="text">
                       <span class="name">{label}</span>
-                      <span class="sub">{repo(c)}</span>
+                      <span class="sub">{c.description || repo(c)}</span>
                       <span class="line">{@render badge(c.colour, c.word)}<span class="when">{c.line}</span></span>
                     </span>
                   </button>
@@ -189,6 +245,7 @@
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
       <div class="head">{@render icon(detail, detail.name, true)}<h3>{detail.name}</h3></div>
       {@render badge(detail.colour, detail.word)}
+      {#if detail.description}<p class="about">{detail.description}</p>{/if}
       <dl>
         <dt>Status</dt><dd>{detail.status || '—'}</dd>
         <dt>State</dt><dd>{detail.state}</dd>
@@ -197,6 +254,35 @@
         <dt>Image</dt><dd class="mono-text">{displayImage(detail.image) || '—'}</dd>
         <dt>Container</dt><dd class="mono-text">{detail.id}</dd>
       </dl>
+      {#if history && history.coveredMs}
+        <section class="history" aria-label="Last 24 hours">
+          <h4>Last 24 hours
+            {#if history.runningPct !== null}<small>running {percent(history.runningPct)}% of {recorded >= 23.9 ? 'the time' : `the ${recorded < 1 ? `${Math.round(recorded * 60)} min` : `${Math.round(recorded)} h`} recorded`}</small>{/if}
+          </h4>
+          <svg class="strip" viewBox="0 0 {history.points.length} 10" preserveAspectRatio="none" role="img"
+            aria-label="Status over the last 24 hours">
+            <rect class="track" x="0" y="0" width={history.points.length} height="10" />
+            {#each runs as run}{#if run.colour}<rect class={run.colour} x={run.from} y="0" width={run.length} height="10" />{/if}{/each}
+          </svg>
+          <div class="axis"><span>24 h ago</span><span>12 h</span><span>now</span></div>
+          <p class="legend">
+            {#each seen as colour}<span class="{colour}"><StatusGlyph {colour} />{STATUS_WORDS[colour]}</span>{/each}
+            {#if gaps}<span><i class="none"></i>No reading</span>{/if}
+          </p>
+          {#each [{ title: 'CPU', t: cpu, now: detail.cpu, text: cpuText, unit: ' of a core' }, { title: 'Memory', t: mem, now: detail.mem, text: memText, unit: '' }] as chart (chart.title)}
+            {#if chart.t}
+              <div class="usage">
+                <p><b>{chart.title}</b><span>{chart.now === null ? 'not running now' : `${chart.text(chart.now)}${chart.unit} now`}</span><span class="peak">peak {chart.text(chart.t.peak)}</span></p>
+                <svg viewBox="0 0 {history.points.length} 40" preserveAspectRatio="none" role="img"
+                  aria-label="{chart.title} over the last 24 hours: {chart.now === null ? 'not running now' : `now ${chart.text(chart.now)}`}, peak {chart.text(chart.t.peak)}">
+                  <line class="base" x1="0" y1="38" x2={history.points.length} y2="38" />
+                  <path class="area" d={chart.t.area} /><path class="trace" d={chart.t.line} />
+                </svg>
+              </div>
+            {/if}
+          {/each}
+        </section>
+      {/if}
       <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
     </aside>
   {/if}
@@ -260,16 +346,43 @@
        border-radius: 0.45rem; background: #222a38; color: #fff; font-weight: 700; font-size: 0.95rem; }
   footer .k:first-child { margin-left: 0; }
 
-  .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 2.6rem 2.4rem; background: #121722;
-            box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 1.1rem; }
+  .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 2rem 2.4rem 1.4rem; overflow: hidden; background: #121722;
+            box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
   h3 { margin: 0; font-size: 2rem; word-break: break-word; }
   .detail .badge b { font-size: 1.3rem; }
   .detail .badge :global(svg) { width: 1.9rem; height: 1.9rem; }
-  dl { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem 1.4rem; margin: 0.4rem 0 0; font-size: 1.25rem; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 0.45rem 1.4rem; margin: 0.2rem 0 0; font-size: 1.15rem; }
   dt { color: var(--muted); }
   dd { margin: 0; word-break: break-word; }
   .mono-text { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 1.05rem; }
-  .hint { margin-top: auto; color: var(--muted); font-size: 1.1rem; }
+  /* Three lines at most: the panel cannot scroll, and the charts below must stay on screen. */
+  .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
+           -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
+  /* History: status colours are the view's own (always beside a glyph and word in the legend);
+     the usage lines are one neutral blue each on its own scale, with the numbers in text. */
+  .history { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.3rem; padding-top: 0.9rem; border-top: 1px solid #262e3c; }
+  h4 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: 1.2rem; font-weight: 700; }
+  h4 small { font-size: 1.05rem; font-weight: 500; color: #b5bdcb; }
+  .strip { width: 100%; height: 1.5rem; border-radius: 0.35rem; }
+  .strip .track { fill: #222a38; }
+  .strip rect:not(.track) { fill: var(--c); }
+  .axis { display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--muted); }
+  .legend { margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; font-size: 1rem; color: #c3cad8; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .legend :global(svg) { width: 1.15rem; height: 1.15rem; color: var(--c); }
+  .legend .none { width: 1rem; height: 1rem; border-radius: 0.2rem; background: #222a38; box-shadow: inset 0 0 0 1px #3a4456; }
+  .usage { margin-top: 0.5rem; }
+  .usage p { margin: 0 0 0.25rem; display: flex; align-items: baseline; gap: 0.8rem; font-size: 1.1rem; }
+  .usage b { font-weight: 700; }
+  .usage .peak { margin-left: auto; color: var(--muted); font-size: 1rem; }
+  .usage svg { display: block; width: 100%; height: 3.4rem; }
+  .usage .trace { fill: none; stroke: #6aa9ff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .usage .area { fill: rgba(106, 169, 255, 0.14); }
+  .usage .base { stroke: #2c3546; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .history { min-height: 0; overflow: hidden; }
+  .head, .detail > .badge, dl { flex-shrink: 0; }
+  h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .hint { flex-shrink: 0; margin-top: auto; color: var(--muted); font-size: 1.1rem; }
   .hint .k { margin-left: 0.2rem; }
 </style>

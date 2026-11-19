@@ -9,7 +9,8 @@ import { AppManager, isExecutable } from './apps';
 import { AppAudio, type AudioAction } from './app-audio';
 import { CameraInputs } from './camera-inputs';
 import { ContainerStatusSource, NOT_CONFIGURED } from './containers-status';
-import { demoStatusReader, withDemoDocker } from './containers-demo';
+import { demoStatusReader, fillDemoHistory, withDemoDocker } from './containers-demo';
+import { ContainerHistory } from './containers-history';
 import { verifyContainersView } from './containers-check';
 import { discoverBrowsers, resolveBrowser, browserTile, type BrowserDiscovery } from './browsers';
 import { profileDir, usesBrowserExtension } from './argv';
@@ -106,6 +107,12 @@ let cameraInputs: CameraInputs | null = null;
 let cameraOrigin: string | null = null;
 /** The Docker tile's status file ([containers]); null when not set up. */
 let containerSource: ContainerStatusSource | null = null;
+/** What the launcher has seen of each container over the last day (the details panel's charts). */
+const containerHistory = new ContainerHistory();
+const containerHistoryFile = join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'sofa-launcher', 'containers-history.json');
+/** Take a reading this often, whatever is on screen, so the history has no gaps while an app plays. */
+const HISTORY_SAMPLE_MS = 60_000;
+let historyTimer: NodeJS.Timeout | null = null;
 /** Screenshots: --demo-screen=containers (the view) or --demo-docker (the tile on Home). */
 const DEMO_DOCKER = DEMO_SCREEN === 'containers' || flag('demo-docker');
 /** Detected games of this login: Roblox (Sober) and installed Steam games (the Games row, after configured games). */
@@ -433,10 +440,27 @@ function configureContainers(): void {
     const mode = flag('demo-containers-error') ? 'error' : 'ok';
     containerSource = new ContainerStatusSource({ path: file, reader: demoStatusReader(mode) });
     if (mode === 'error') void containerSource.refresh(); // the last good read, before the file "goes missing"
+    void containerSource.refresh().then((snap) => fillDemoHistory(containerHistory, snap.containers, Date.now()));
     return;
   }
   if (containerSource?.path === file) return;
   containerSource = new ContainerStatusSource({ path: file });
+}
+
+/** One history reading. A stale or unreadable file says nothing about now, so it is not recorded. */
+async function sampleContainers(): Promise<void> {
+  if (!containerSource) return;
+  const snap = await containerSource.refresh(HISTORY_SAMPLE_MS / 2).catch(() => null);
+  if (snap && !snap.error && !snap.stale) containerHistory.record(snap.containers, Date.now());
+}
+
+async function startContainerHistory(): Promise<void> {
+  await containerHistory.load(containerHistoryFile, Date.now());
+  let ticks = 0;
+  historyTimer = setInterval(() => {
+    void sampleContainers().then(() => (++ticks % 10 ? undefined : containerHistory.save(containerHistoryFile)));
+  }, HISTORY_SAMPLE_MS);
+  void sampleContainers();
 }
 
 /** The Docker tile's dot. While Home is in front, re-read the file at most once a minute. */
@@ -1247,6 +1271,8 @@ function registerIpc(): void {
   handle('launcher:camera-stills', () => cameraStills.stills);
   // Read-only: the view re-reads at most every 5 s (on open, `fresh` reads now).
   handle('containers:snapshot', (_event, fresh) => containerSource?.refresh(fresh === true ? 0 : 5000) ?? NOT_CONFIGURED);
+  handle('containers:history', (_event, name) => (containerSource && typeof name === 'string' && name.length <= 128
+    ? containerHistory.series(name, Date.now()) : null));
   handle('launcher:game-art', (_event, appId) => (typeof appId === 'string' ? gameArt(appId) : null));
   handle('home:items', () => homeItems());
   handle('home:set', (_event, id, shown) => setHomeItem(id, shown));
@@ -1594,6 +1620,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
       void pip.check();
     }, 3000);
     if (!DEMO) watchdog.start();
+    if (!DEMO) void startContainerHistory();
     // Not in dev: a pointer that vanishes is unwelcome on a desk.
     if (!DEMO && !DEV) idlePointer.start();
   });
@@ -1618,6 +1645,8 @@ if (flag('setup-user') || flag('undo-user-setup')) {
   });
   app.on('will-quit', () => {
     idlePointer.stop();
+    if (historyTimer) clearInterval(historyTimer);
+    if (!DEMO) containerHistory.saveSync(containerHistoryFile); // demo history is made up: never keep it
     cameraInputs?.dispose();
     watchdog.stop();
     globalShortcut.unregisterAll();

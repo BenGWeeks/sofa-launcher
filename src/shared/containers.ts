@@ -24,7 +24,37 @@ export interface ContainerInfo {
   word: string;
   /** A short status line for the card ("Up 2 hours", "Exited 36 hours ago"). */
   line: string;
+  /** What the container is for, in a sentence; empty when the status file gives none. */
+  description: string;
+  /** CPU use as a percentage of one core (250 = two and a half cores); null when not published. */
+  cpu: number | null;
+  /** Memory in use, in bytes; null when not published. */
+  mem: number | null;
 }
+
+/** One slice of a container's history (HISTORY_BUCKET_MS long). */
+export interface HistoryPoint {
+  /** The worst status seen in the slice; null when the launcher has no reading for it. */
+  colour: ContainerColour | null;
+  /** Average CPU (percent of one core) and peak memory (bytes); null when not published. */
+  cpu: number | null;
+  mem: number | null;
+}
+
+/** A container's recent history, oldest slice first, ending at `end`. */
+export interface ContainerHistorySeries {
+  bucketMs: number;
+  end: number;
+  points: HistoryPoint[];
+  /** Share of readings in which the container was running normally (green), 0-100; null without readings. */
+  runningPct: number | null;
+  /** How much of the window has readings, in ms. */
+  coveredMs: number;
+}
+
+export const HISTORY_BUCKET_MS = 10 * 60_000;
+/** 24 hours of ten-minute slices. */
+export const HISTORY_BUCKETS = 144;
 
 export interface ContainersSnapshot {
   /** Is a [containers] status file configured? */
@@ -48,6 +78,8 @@ export interface ContainersApi {
   snapshot(fresh?: boolean): Promise<ContainersSnapshot>;
   /** Main asks the home window to show the containers view (the Docker tile was opened). */
   onShow(cb: () => void): () => void;
+  /** The last 24 hours of one container, as recorded by the launcher; null when not set up. */
+  history(name: string): Promise<ContainerHistorySeries | null>;
 }
 
 export const MAX_ENTRIES = 500;
@@ -67,6 +99,13 @@ function text(value: unknown, max: number): string | null {
   const clean = value.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim();
   return clean.length > max ? clean.slice(0, max) : clean;
 }
+
+/** A finite number within [0, max]; null otherwise. */
+function amount(value: unknown, max: number): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max ? value : null;
+}
+
+export const NAME_PATTERN = NAME;
 
 /** "Exited (137) 36 hours ago" → 137; null if the text has no exit code. */
 export function exitCode(status: string): number | null {
@@ -157,6 +196,9 @@ export function parseEntry(raw: unknown): ContainerInfo | null {
     project: (text(r.Project, 64) ?? '').toLowerCase(),
     service: text(r.Service, 64) ?? '',
     colour, word, line: statusLine(status),
+    description: text(r.Description, 240) ?? '',
+    cpu: amount(r.Cpu, 100_000),
+    mem: amount(r.Mem, 2 ** 50),
   };
 }
 
