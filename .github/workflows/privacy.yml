@@ -2,6 +2,8 @@ name: Privacy
 # Fails when a tracked file mentions a maintainer's private details (host names, accounts,
 # domains, addresses). The patterns live in the PRIVACY_DENYLIST repository secret, one
 # case-insensitive extended regex per line, so the list itself is never published.
+# A phrase that is public on purpose (a donation address, say) goes in the PRIVACY_ALLOWLIST
+# repository variable: exactly that phrase is then let through, nothing wider.
 # Pull requests from forks get no secrets; the check is skipped there and runs on main.
 on:
   pull_request:
@@ -17,6 +19,7 @@ jobs:
       - name: Scan tracked files
         env:
           DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+          ALLOWLIST: ${{ vars.PRIVACY_ALLOWLIST }}
         run: |
           if [ -z "$DENYLIST" ]; then
             echo "PRIVACY_DENYLIST is not available here; skipping."
@@ -24,9 +27,28 @@ jobs:
           fi
           patterns=$(mktemp)
           printf '%s\n' "$DENYLIST" | sed '/^[[:space:]]*$/d' > "$patterns"
+          # Phrases that are public on purpose (PRIVACY_ALLOWLIST repository variable, one exact
+          # phrase per line, case-insensitive). Each is blanked out of a matching line before the
+          # line is tested again, so the phrase itself passes while anything around it, or a part
+          # of it on its own (a domain without the address, say), is still caught.
+          allow=$(mktemp)
+          printf '%s\n' "$ALLOWLIST" | sed '/^[[:space:]]*$/d' > "$allow"
           # -I skips binary files; only file names and line numbers are printed,
           # never the matching text, so the private patterns stay out of the log.
-          if git grep -I -n -i -E -f "$patterns" -- . ':!package-lock.json' | cut -d: -f1,2 > hits.txt; [ -s hits.txt ]; then
+          git grep -I -n -i -E -f "$patterns" -- . ':!package-lock.json' > raw.txt || true
+          awk -v allow="$allow" '
+            BEGIN { while ((getline phrase < allow) > 0) if (phrase != "") phrases[++n] = tolower(phrase) }
+            {
+              match($0, /^[^:]*:[0-9]+:/)
+              where = substr($0, 1, RLENGTH - 1); text = substr($0, RLENGTH + 1)
+              for (i = 1; i <= n; i++)
+                while ((at = index(tolower(text), phrases[i])) > 0)
+                  text = substr(text, 1, at - 1) " " substr(text, at + length(phrases[i]))
+              print where > "where.txt"; print text > "text.txt"
+            }' raw.txt
+          touch where.txt text.txt
+          grep -n -i -E -f "$patterns" text.txt | cut -d: -f1 | while read -r n; do sed -n "${n}p" where.txt; done > hits.txt || true
+          if [ -s hits.txt ]; then
             echo "::error::Private details found (file:line). Replace them with placeholders, see CONTRIBUTING.md."
             cat hits.txt
             exit 1
