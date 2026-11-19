@@ -72,6 +72,7 @@ export class ContainerStatusSource {
       error: this.error,
       stale: this.modifiedAt !== null && this.now() - this.modifiedAt > STALE_AFTER_MS,
       skipped: this.skipped,
+      canRestart: false,
     };
   }
 
@@ -128,5 +129,5 @@ export class ContainerStatusSource {
 }
 
 export const NOT_CONFIGURED: ContainersSnapshot = {
-  configured: false, containers: [], modifiedAt: null, readAt: null, error: null, stale: false, skipped: 0,
+  configured: false, containers: [], modifiedAt: null, readAt: null, error: null, stale: false, skipped: 0, canRestart: false,
 };

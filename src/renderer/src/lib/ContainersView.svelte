@@ -40,6 +40,50 @@
   $effect(() => { void detail?.name; void loadHistory(); });
   let polls = 0;
 
+  // ---- restart (only when this account may: the snapshot says so) ------------
+  /** Which panel button has the highlight, and whether we are asking "are you sure?". */
+  let choice = $state<'close' | 'restart'>('close');
+  let confirming = $state(false);
+  /** The container being restarted (its name), while waiting for the answer. */
+  let restarting = $state<string | null>(null);
+  /** When the confirmation appeared: a double-click must not also be the answer to it. */
+  let askedAt = 0;
+  let outcome = $state<{ ok: boolean; message: string } | null>(null);
+  /** Only what is running: this never starts something that was stopped. */
+  const canRestart = $derived(!!snap?.canRestart && !!detail?.restartable && detail.state === 'running');
+
+  function openDetail(c: ContainerInfo | null) {
+    detail = c; choice = 'close'; confirming = false; outcome = null;
+  }
+
+  async function restart() {
+    const target = detail;
+    if (!target || restarting) return;
+    restarting = target.name; confirming = false; outcome = null;
+    const result = await window.sofaContainers.restart(target.name).catch(() => ({ ok: false, message: 'The launcher could not ask for the restart' }));
+    restarting = null; choice = 'close';
+    if (detail?.name === target.name) outcome = result;
+    void refresh(true);
+  }
+
+  /** OK and the arrows inside the details panel. */
+  function panelKey(key: string) {
+    if (restarting) return;
+    if (!canRestart) { if (key === 'Enter') openDetail(null); return; }
+    if (key === 'ArrowLeft' || key === 'ArrowRight') { choice = choice === 'close' ? 'restart' : 'close'; return; }
+    if (key !== 'Enter') return;
+    if (choice === 'close') { if (confirming) confirming = false; else openDetail(null); }
+    else if (confirming) void restart();
+    // Asking moves the highlight to Cancel: a second OK by reflex must not restart anything.
+    else { confirming = true; choice = 'close'; outcome = null; askedAt = Date.now(); }
+  }
+
+  /** A mouse click on a panel button (the remote uses the keys). */
+  function click(which: 'close' | 'restart') {
+    if (confirming && which === 'restart' && Date.now() - askedAt < 700) return;
+    choice = which; panelKey('Enter');
+  }
+
   const STATUS_WORDS: Record<ContainerColour, string> = { green: 'Running', amber: 'Not ready', red: 'Problem', grey: 'Stopped' };
   const ORDER: ContainerColour[] = ['green', 'amber', 'red', 'grey'];
   /** The strip as runs of one status, so neighbouring slices draw as one block. */
@@ -143,11 +187,13 @@
     e.stopPropagation();
     if (e.repeat && !e.key.startsWith('Arrow')) { e.preventDefault(); return; }
     if (BACK_KEYS.has(e.key)) {
-      if (detail) detail = null; else onclose();
+      if (restarting) { /* wait for the answer */ } else if (confirming) confirming = false; else if (detail) openDetail(null); else onclose();
     } else if (e.key === 'Enter') {
-      detail = detail ? null : cards[focus] ?? null;
+      if (detail) panelKey('Enter'); else openDetail(cards[focus] ?? null);
+    } else if (e.key === ' ' && detail) {
+      // Space would press whichever button a mouse click left focused: only OK chooses.
     } else if (e.key.startsWith('Arrow')) {
-      if (detail) { e.preventDefault(); return; }
+      if (detail) { panelKey(e.key); e.preventDefault(); return; }
       focus = spatialMove(boxes(), focus, e.key);
       void reveal();
     } else return;
@@ -222,7 +268,7 @@
                 {#each group.containers as c, i (c.id)}
                   {@const label = headings ? shortName(c.name, group.name) : c.name}
                   <button class="card {c.colour}" class:focused={offset + i === focus} tabindex="-1"
-                    onclick={() => { focus = offset + i; detail = c; }}>
+                    onclick={() => { if (!restarting) { focus = offset + i; openDetail(c); } }}>
                     {@render icon(c, label)}
                     <span class="text">
                       <span class="name">{label}</span>
@@ -248,7 +294,6 @@
       {#if detail.description}<p class="about">{detail.description}</p>{/if}
       <dl>
         <dt>Status</dt><dd>{detail.status || '—'}</dd>
-        <dt>State</dt><dd>{detail.state}</dd>
         {#if detail.project}<dt>Stack</dt><dd>{detail.project}</dd>{/if}
         {#if detail.service}<dt>Service</dt><dd>{detail.service}</dd>{/if}
         <dt>Image</dt><dd class="mono-text">{displayImage(detail.image) || '—'}</dd>
@@ -283,7 +328,27 @@
           {/each}
         </section>
       {/if}
-      <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
+      {#if canRestart || restarting || outcome}
+        <div class="actions">
+          {#if restarting}
+            <p class="note" role="status">Restarting {restarting}…</p>
+          {:else}
+            {#if outcome}<p class="note {outcome.ok ? 'green' : 'red'}" role="status"><StatusGlyph colour={outcome.ok ? 'green' : 'red'} />{outcome.ok ? `${detail.name} was restarted` : outcome.message}</p>{/if}
+            {#if confirming}<p class="note" role="alert">Restart {detail.name}? It will be unavailable for a moment.</p>{/if}
+            {#if canRestart}
+              <div class="buttons">
+                <button class:focused={choice === 'close'} tabindex="-1" onclick={() => click('close')}>{confirming ? 'Cancel' : 'Close'}</button>
+                <button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => click('restart')}>{confirming ? 'Restart now' : 'Restart'}</button>
+              </div>
+            {/if}
+          {/if}
+        </div>
+      {/if}
+      {#if canRestart}
+        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</p>
+      {:else}
+        <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
+      {/if}
     </aside>
   {/if}
 </div>
@@ -372,17 +437,26 @@
   .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
   .legend :global(svg) { width: 1.15rem; height: 1.15rem; color: var(--c); }
   .legend .none { width: 1rem; height: 1rem; border-radius: 0.2rem; background: #222a38; box-shadow: inset 0 0 0 1px #3a4456; }
-  .usage { margin-top: 0.5rem; }
+  .usage { margin-top: 0.3rem; }
   .usage p { margin: 0 0 0.25rem; display: flex; align-items: baseline; gap: 0.8rem; font-size: 1.1rem; }
   .usage b { font-weight: 700; }
   .usage .peak { margin-left: auto; color: var(--muted); font-size: 1rem; }
-  .usage svg { display: block; width: 100%; height: 3.4rem; }
+  .usage svg { display: block; width: 100%; height: 2.9rem; }
   .usage .trace { fill: none; stroke: #6aa9ff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
   .usage .area { fill: rgba(106, 169, 255, 0.14); }
   .usage .base { stroke: #2c3546; stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .history { min-height: 0; overflow: hidden; }
+  .history { flex-shrink: 0; }
+  .history > * { flex-shrink: 0; }
   .head, .detail > .badge, dl { flex-shrink: 0; }
   h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .actions { flex-shrink: 0; margin-top: auto; display: flex; flex-direction: column; gap: 0.6rem; }
+  .actions + .hint { margin-top: 0; }
+  .note { margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; color: #e6e9f0; }
+  .note :global(svg) { width: 1.4rem; height: 1.4rem; flex-shrink: 0; color: var(--c); }
+  .buttons { display: flex; gap: 0.8rem; }
+  .buttons button { all: unset; box-sizing: border-box; flex: 1; text-align: center; padding: 0.65rem 1rem; border-radius: 0.7rem; background: #222a38;
+                    font-size: 1.2rem; font-weight: 700; color: #e6e9f0; }
+  .buttons button.focused { box-shadow: 0 0 0 0.25rem var(--focus-ring), 0 0 1.4rem var(--accent-glow); background: #2b3547; color: #fff; }
   .hint { flex-shrink: 0; margin-top: auto; color: var(--muted); font-size: 1.1rem; }
   .hint .k { margin-left: 0.2rem; }
 </style>

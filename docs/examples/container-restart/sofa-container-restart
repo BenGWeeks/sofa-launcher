@@ -1,0 +1,40 @@
+#!/bin/bash
+# Restart ONE named, running container for Sofa Launcher, and nothing else.
+#
+# Started by systemd for each connection to sofa-container-restart.socket, with the connection
+# as stdin and stdout. Who may connect is set by that socket's group (SocketGroup=), so this
+# script never decides who is asking: only what they may ask for.
+#
+# Request: one line, "restart <container name>".  Reply: one line, "ok" or "error <reason>".
+#
+# Refused: a container that is not running (this never starts something that was stopped), and
+# one whose compose file sets the label  sofa.restart  to "false" (or no / off / 0).
+set -uo pipefail
+# The C locale, so [A-Za-z0-9] means exactly those characters.
+export LC_ALL=C
+note() { logger -t sofa-container-restart "$1 (connection ${SOFA_PEER:-unknown})" 2>/dev/null || true; }
+reply() { printf '%s\n' "$1"; exit 0; }
+refuse() { note "refused: $1"; reply "error $1"; }
+
+IFS= read -r -t 5 -n 200 line || refuse 'bad request'
+[[ $line =~ ^restart\ ([A-Za-z0-9][A-Za-z0-9_.-]{0,127})$ ]] || refuse 'bad request'
+name=${BASH_REMATCH[1]}
+
+# The name must be a container that exists, addressed by its name (not an id prefix). The
+# restart below uses the id found here, so the checks and the restart are about one container.
+found=$(timeout 15 docker inspect --type container \
+  --format '{{.Id}}|{{.Name}}|{{.State.Running}}|{{index .Config.Labels "sofa.restart"}}' -- "$name" 2>/dev/null) ||
+  refuse 'there is no such container'
+IFS='|' read -r id actual running label <<<"$found"
+[[ $actual == "/$name" && $id =~ ^[0-9a-f]{64}$ ]] || refuse 'there is no such container'
+label=${label,,}; label=${label//[[:space:]]/}
+case $label in false|no|off|0) refuse 'this container is protected from restarts' ;; esac
+[[ $running == true ]] || refuse 'this container is not running'
+
+note "restarting $name"
+timeout 120 docker restart -- "$id" >/dev/null 2>&1
+case $? in
+  0) note "restarted $name"; reply ok ;;
+  124) note "restart of $name timed out"; reply 'error Docker is taking a long time: it may still be restarting' ;;
+  *) note "restart of $name failed"; reply 'error Docker could not restart it' ;;
+esac

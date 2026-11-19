@@ -1,0 +1,24 @@
+[Unit]
+Description=Sofa Launcher: restart a container (one request)
+
+[Service]
+# An account in the docker group. Not the TV user, and not a login account.
+User=services
+ExecStart=/usr/local/sbin/sofa-container-restart
+Environment=SOFA_PEER=%i
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+RuntimeMaxSec=180
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=yes
+UMask=0077
+TasksMax=32

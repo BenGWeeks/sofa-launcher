@@ -380,6 +380,47 @@ running, or the file was stale, is drawn as **No reading**, never guessed.
 
 ![A container's details: description, status over 24 hours, CPU and memory](docs/screenshots/containers-details.png)
 
+**Restarting a container (optional, for chosen accounts only).** The view is
+read-only unless you set up the restart service in
+[`docs/examples/container-restart/`](docs/examples/container-restart/): a systemd
+socket that restarts one named container and does nothing else (no stop, no remove,
+no other Docker command). The launcher still never talks to Docker; it sends
+`restart <name>` to that socket and shows the one-line answer.
+
+- **Who may restart** is decided by the system, not the launcher: only members of
+  the socket's group (`sofa-docker` in the example) can open it. For any other
+  account the details panel has no Restart button, and the socket would refuse
+  them anyway.
+- **Which containers:** any that is running, except those whose compose file sets
+  the label `sofa.restart: "false"`. The service checks both itself. It never
+  starts a container that was stopped.
+- **On the remote:** OK on a card, → to **Restart**, OK, then → and OK again on
+  **Restart now**. The confirmation starts on **Cancel**, so a second OK by reflex
+  does nothing.
+
+```bash
+sudo groupadd --system sofa-docker
+sudo gpasswd -a tvuser sofa-docker          # each account that may restart; log out and in again
+sudo install -m 755 docs/examples/container-restart/sofa-container-restart /usr/local/sbin/
+sudo install -m 644 docs/examples/container-restart/sofa-container-restart.socket \
+                    docs/examples/container-restart/sofa-container-restart@.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now sofa-container-restart.socket
+```
+
+Set `User=` in the service file to an account in the `docker` group (not the TV
+user), then tell the launcher where the socket is:
+
+```toml
+[containers]
+file = "/var/lib/docker-status/containers.json"
+restart_socket = "/run/sofa-container-restart.sock"
+```
+
+Anyone holding the remote in a session of an allowed account can restart
+containers, so keep shared logins out of the group.
+
+![Asking before a restart](docs/screenshots/containers-restart.png)
+
 Stacks whose names share a first word with another stack are shown together
 (`t3-stack`, `t3-host-relay` → **t3**); containers without a stack go under
 **Other**. Inside a stack, cards drop the stack's prefix (`nextcloud-db` → `db`).
