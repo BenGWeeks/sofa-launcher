@@ -388,6 +388,7 @@ function artDataUrl(file: string): string | null {
   const cached = gameArtCache.get(file);
   if (cached?.key === key) return cached.value;
   const image = nativeImage.createFromPath(file);
+  if (image.isEmpty()) console.error(`Tile picture could not be read as an image: ${file}`);
   const value = image.isEmpty() ? null : `data:image/jpeg;base64,${image.resize({ width: 460, quality: 'good' }).toJPEG(80).toString('base64')}`;
   gameArtCache.set(file, { key, value });
   return value;

@@ -30,6 +30,11 @@ const AppSchema = z
     keepOnClose: z.boolean().optional(),
     /** "games" puts the tile in the Games row (no 1-9 number); "apps" moves a catalogue game back. */
     group: z.enum(['apps', 'games']).optional(),
+    /** A picture for a Games tile: an absolute path to a PNG or JPEG on this computer. */
+    art: z.string().max(1024).refine(
+      (p) => p.startsWith('/') && !/[\0\n\r]/.test(p) && !p.split('/').some((part) => part === '.' || part === '..') && /\.(png|jpe?g)$/i.test(p),
+      'an absolute path to a .png or .jpg file',
+    ).optional(),
   })
   .strict();
 
@@ -138,7 +143,7 @@ export interface ResolvedApp {
   group?: 'games';
   /** The command only asks another program (the Steam client) to start the app: never signal it. */
   handOff?: boolean;
-  /** Local artwork file (detected Steam games). */
+  /** Local artwork file (detected Steam games, or [[apps]] art). */
   art?: string;
   /** The full browser (tabs and address bar) rather than one site in app mode. */
   fullBrowser?: boolean;
@@ -222,6 +227,7 @@ function resolveApp(a: RawApp): ResolvedApp {
     hotkeys: { ...base?.hotkeys, ...a.hotkeys },
   };
   if ((a.group ?? base?.group) === 'games') merged.group = 'games';
+  if (a.art) merged.art = a.art;
   if (base?.fullBrowser && type === 'web') merged.fullBrowser = true;
   if (type === 'web' && !merged.url && !merged.fullBrowser) throw new ConfigError(`app "${a.id}": web apps need a url`);
   if (type === 'web' && merged.url && !isAllowedWebUrl(merged.url))
