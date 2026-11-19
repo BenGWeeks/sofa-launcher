@@ -136,7 +136,8 @@ const version = (value: unknown) => (text(value, 64) ?? '').replace(/[^\x21-\x7e
 export function parseUpdate(raw: unknown): ContainerUpdate | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
-  const checked = typeof r.Checked === 'string' && r.Checked.length <= 40 ? Date.parse(r.Checked) : NaN;
+  // A full ISO date and time only: Date.parse would also take "5" or "2001".
+  const checked = typeof r.Checked === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/.test(r.Checked) ? Date.parse(r.Checked) : NaN;
   return {
     available: typeof r.Available === 'boolean' ? r.Available : null,
     current: version(r.Current),

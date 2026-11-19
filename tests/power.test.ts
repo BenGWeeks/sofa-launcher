@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { logOff, logoutCommand, logoutFallback } from '../src/main/power';
+import { canSwitchCommand, greeterCommand, lockCommand, lockedCommand, logOff, logoutCommand, logoutFallback, switchAccount, unlockCommand, type PowerCommand } from '../src/main/power';
 
 describe('logout command plans', () => {
   it('asks KDE to log out without its own prompt', () => {
@@ -33,27 +33,61 @@ describe('logout command plans', () => {
   });
 });
 
-import { greeterCommand, lockCommand, switchAccount } from '../src/main/power';
-
 describe('switch account', () => {
-  const greeter = (seat: string) => ({ file: 'dbus-send', args: ['--system', '--print-reply', '--dest=org.freedesktop.DisplayManager', seat, 'org.freedesktop.DisplayManager.Seat.SwitchToGreeter'] });
-  it('locks this session, then asks for the login screen', async () => {
-    const run = vi.fn().mockResolvedValue(undefined);
-    await switchAccount('c2', '/org/freedesktop/DisplayManager/Seat1', run);
-    expect(run.mock.calls).toEqual([[{ file: 'loginctl', args: ['lock-session', 'c2'] }], [greeter('/org/freedesktop/DisplayManager/Seat1')]]);
+  const SEAT = '/org/freedesktop/DisplayManager/Seat0';
+  /** A desktop that answers each command; `answers` overrides by the command's distinguishing argument. */
+  function desktop(answers: Record<string, string | Error | (() => string)> = {}) {
+    const calls: PowerCommand[] = [];
+    const run = vi.fn(async (command: PowerCommand) => {
+      calls.push(command);
+      const key = command.args.find((a) => a in answers) ?? '';
+      const answer = answers[key] ?? (command.args.includes('string:CanSwitch') ? '   variant       boolean true\n' : command.args.includes('LockedHint') ? 'yes\n' : '');
+      if (answer instanceof Error) throw answer;
+      return typeof answer === 'function' ? answer() : answer;
+    });
+    return { calls, deps: { run, wait: async () => undefined, lockTimeoutMs: 1000 } };
+  }
+
+  it('checks it can, locks, waits for the lock, then asks for the login screen', async () => {
+    let asked = 0;
+    const d = desktop({ LockedHint: () => (++asked < 3 ? 'no\n' : 'yes\n') });
+    await switchAccount('c2', SEAT, d.deps);
+    expect(d.calls).toEqual([canSwitchCommand(SEAT), lockCommand('c2'), lockedCommand('c2'), lockedCommand('c2'), lockedCommand('c2'), greeterCommand(SEAT)]);
   });
-  it('never shows the login screen over a session it could not lock', async () => {
-    const run = vi.fn().mockRejectedValue(new Error('no loginctl'));
-    await expect(switchAccount('c2', undefined, run)).rejects.toThrow();
-    expect(run).toHaveBeenCalledTimes(1);
-    const never = vi.fn();
-    await expect(switchAccount('1;reboot', undefined, never)).rejects.toThrow();
-    await expect(switchAccount(undefined, undefined, never)).rejects.toThrow();
-    expect(never).not.toHaveBeenCalled();
+
+  it('does nothing when the computer cannot switch accounts', async () => {
+    const no = desktop({ 'string:CanSwitch': '   variant       boolean false\n' });
+    await expect(switchAccount('c2', SEAT, no.deps)).rejects.toThrow('cannot switch');
+    expect(no.calls).toHaveLength(1);
+    const missing = desktop({ 'string:CanSwitch': new Error('no display manager') });
+    await expect(switchAccount('c2', SEAT, missing.deps)).rejects.toThrow();
+    expect(missing.calls).toHaveLength(1);
   });
+
+  it('never shows the login screen over a session that did not lock', async () => {
+    const asked = desktop({ LockedHint: 'no\n' });
+    await expect(switchAccount('c2', SEAT, asked.deps)).rejects.toThrow('did not lock');
+    expect(asked.calls).not.toContainEqual(greeterCommand(SEAT));
+    const failed = desktop({ 'lock-session': new Error('no loginctl') });
+    await expect(switchAccount('c2', SEAT, failed.deps)).rejects.toThrow();
+    expect(failed.calls).not.toContainEqual(greeterCommand(SEAT));
+    const never = desktop();
+    await expect(switchAccount('1;reboot', SEAT, never.deps)).rejects.toThrow();
+    await expect(switchAccount(undefined, SEAT, never.deps)).rejects.toThrow();
+    expect(never.calls).toEqual([]);
+  });
+
+  it('unlocks again when the login screen does not come', async () => {
+    const d = desktop({ 'org.freedesktop.DisplayManager.Seat.SwitchToGreeter': new Error('timeout') });
+    await expect(switchAccount('c2', SEAT, d.deps)).rejects.toThrow('timeout');
+    expect(d.calls.at(-1)).toEqual(unlockCommand('c2'));
+  });
+
   it.each([undefined, '', '/org/freedesktop/DisplayManager/Seat0 --x', '/evil', '/org/freedesktop/DisplayManager/Seat0/../x'])('uses the first seat for seat path %s', (seat) => {
-    expect(greeterCommand(seat)).toEqual(greeter('/org/freedesktop/DisplayManager/Seat0'));
+    expect(greeterCommand(seat).args).toContain(SEAT);
+    expect(greeterCommand('/org/freedesktop/DisplayManager/Seat1').args).toContain('/org/freedesktop/DisplayManager/Seat1');
   });
+
   it('rejects an odd session id', () => {
     expect(lockCommand('-1')).toBeNull();
     expect(lockCommand('3')).toEqual({ file: 'loginctl', args: ['lock-session', '3'] });

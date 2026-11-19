@@ -954,6 +954,7 @@ async function onAction(action: GlobalAction): Promise<void> {
     case 'input':
       if (keyboardTarget) return hidePanel(true);
       // On Home there is nothing to type into: Input offers the other accounts instead.
+      // Read the renderer's answer: it only asks on the Home screen itself.
       if (state.launcherInFront && !panelOpen()) { sendAction({ action: 'switchAccount', context: 'home' }); return; }
       return openKeyboard();
     case 'spareE': {
@@ -1208,9 +1209,11 @@ function registerIpc(): void {
   handle('launcher:switchAccount', async () => {
     if (DEMO) return toast('Switching account is disabled in demo mode');
     try {
-      await switchAccount(process.env.XDG_SESSION_ID, process.env.XDG_SEAT_PATH, ({ file, args }) => new Promise<void>((resolve, reject) => {
-        execFile(file, args, { timeout: 10_000 }, (err) => err ? reject(err) : resolve());
-      }));
+      await switchAccount(process.env.XDG_SESSION_ID, process.env.XDG_SEAT_PATH, {
+        run: ({ file, args }) => new Promise<string>((resolve, reject) => {
+          execFile(file, args, { timeout: 10_000, encoding: 'utf8' }, (err, stdout) => err ? reject(err) : resolve(stdout));
+        }),
+      });
     } catch {
       toast('Couldn’t show the login screen');
       throw new Error('Switch account failed');

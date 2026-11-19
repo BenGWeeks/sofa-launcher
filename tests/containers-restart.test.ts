@@ -167,5 +167,6 @@ describe('status file: Update', () => {
     expect(update({ Available: 'true', Current: 5, Latest: 'v1 \u202e<b>', Kind: 'weird', Checked: 'yesterday' }))
       .toEqual({ available: null, current: '', latest: 'v1<b>', kind: 'unknown', checkedAt: null });
     expect(update({ Available: true, Latest: 'x'.repeat(200) })!.latest).toHaveLength(64);
+    for (const Checked of ['5', '2001', '2026-11-19', 'Thu, 19 Nov 2026 04:30:00 GMT']) expect(update({ Available: true, Checked })!.checkedAt).toBeNull();
   });
 });

@@ -8,8 +8,10 @@
   let confirming = $state<'logout' | 'switch' | null>(start);
   let username = $state('');
   let failed = $state(false);
+  let busy = false;
   onMount(() => { void window.sofa.username().then((name) => (username = name)); });
-  const SWITCH = 'M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7';
+  /* Two people: one in front, one behind. */
+  const SWITCH = 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18.5 14.2a6.5 6.5 0 0 1 3 5.8';
   const LOGOUT = 'M9 3H3v18h6M10 12h12m-5-5 5 5-5 5';
   const options = [
     { id: 'close', icon: 'M6 6l12 12M18 6L6 18', label: 'Close Sofa Launcher', hint: 'Back to the desktop.' },
@@ -29,16 +31,18 @@
     ? [{ id: 'cancel', remoteIcon: 'back', icon: '', label: 'Cancel' }, { id: 'go', icon: SWITCH, label: 'Switch account', hint: 'Shows the login screen.' }] as const
     : [{ id: 'cancel', remoteIcon: 'back', icon: '', label: 'Cancel' }, { id: 'go', icon: LOGOUT, label: 'Log off', hint: 'Apps will close.' }] as const);
   const title = $derived(confirming === 'switch'
-    ? (failed ? 'Couldn’t show the login screen. Try again?' : `Switch account? ${username} stays signed in, locked.`)
+    ? (failed ? 'Couldn’t switch account. Try again?' : `Switch account? ${username} stays signed in, locked.`)
     : (failed ? 'Couldn’t log off. Try again?' : `Log off ${username}? Apps will close.`));
   /** Leaving a confirmation: back to the menu, or away entirely when it was opened directly. */
   function leave() { if (start) onclose(); else confirming = null; }
   async function confirm(id: string) {
     if (id === 'cancel') return leave();
+    if (busy) return;
+    busy = true;
     try {
       if (confirming === 'switch') await window.sofa.switchAccount(); else await window.sofa.logOff();
       onclose();
-    } catch { failed = true; }
+    } catch { failed = true; } finally { busy = false; }
   }
 </script>
 

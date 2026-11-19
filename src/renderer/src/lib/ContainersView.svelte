@@ -136,6 +136,8 @@
     return map;
   });
   const counts = $derived(countParts(snap?.containers ?? []));
+  /** A version for the one-line Update row: long tags are cut, the panel cannot scroll. */
+  const short = (v: string) => (v.length > 22 ? `${v.slice(0, 21)}…` : v);
   const updates = $derived((snap?.containers ?? []).filter((c) => c.update?.available).length);
   /** Hide the heading when everything is in one unnamed group (no compose data published). */
   const headings = $derived(!(groups.length === 1 && groups[0]!.name === OTHER_GROUP));
@@ -279,7 +281,7 @@
                     {@render icon(c, label)}
                     {#if c.update?.available}<span class="newer corner" title="Update available">{@render arrow()}<span class="sr">Update available</span></span>{/if}
                     <span class="text">
-                      <span class="name">{label}</span>
+                      <span class="name" class:marked={!!c.update?.available}>{label}</span>
                       <span class="sub">{c.description || repo(c)}</span>
                       <span class="line">{@render badge(c.colour, c.word)}<span class="when">{c.line}</span></span>
                     </span>
@@ -311,9 +313,9 @@
           <dd>
             {#if u.available}
               <span class="newer inline">{@render arrow()}Available</span>
-              {#if u.kind === 'pinned' && u.latest}<span class="mono-text">{u.current || '?'} → {u.latest}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
+              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<span class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
             {:else}Up to date{/if}
-            {#if u.checkedAt}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
+            {#if u.checkedAt && u.checkedAt <= now + 300_000}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
           </dd>
         {/if}
       </dl>
@@ -448,6 +450,8 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .inline { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; margin-right: 0.6rem; }
   .quiet { color: var(--muted); }
+  .name.marked { padding-right: 1.3rem; }
+  .versions { white-space: nowrap; }
   dd small { display: block; font-size: 1rem; margin-top: 0.1rem; }
   .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
            -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
