@@ -294,7 +294,8 @@
      and the focus ring sits inside the tile so the scrolling row can never clip it. */
   .rows .row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:calc((100% - 7.6rem) / 5); gap:1.6rem; overflow-x:auto; scrollbar-width:none; padding:1rem .6rem; margin-top:2rem; }
   .rows h2 + .row { margin-top:0; }
-  .rows .row :global(.focused .tile) { transform:none; box-shadow:none; --inner-ring:block; }
+  /* The highlighted tile still grows a little: the row's padding has room for 8%, not the grid's 12%. */
+  .rows .row :global(.focused .tile) { transform:scale(1.08); box-shadow:none; --inner-ring:block; }
   /* With games, rows keep the focused tile clear of the edges (scroll-padding) and fade tiles
      that are only partly in view, like the slide-up panel; the negative margin keeps alignment. */
   .has-games .row { padding:1rem 1.6rem; margin-inline:-1rem; scroll-padding-inline:1.6rem;
@@ -312,7 +313,7 @@
                        overflow-x:auto; scrollbar-width:none; scroll-padding-inline:1rem; margin-top:.2rem;
                        mask-image:linear-gradient(90deg, transparent 0, #000 1rem, #000 calc(100% - 1rem), transparent 100%); }
   .wrapped h2 { margin-top:.4rem; }
-  .wrapped .row :global(.focused .tile) { transform:none; box-shadow:none; --inner-ring:block; }
+  .wrapped .row :global(.focused .tile) { transform:scale(1.08); box-shadow:none; --inner-ring:block; }
   .camera-row :global(.focused .tile) { background:var(--accent); color:var(--accent-contrast); }
   h2 { margin:1.2rem 0 0 .6rem; font-size:1.5rem; color:var(--muted); }
   .empty { grid-column: 1 / -1; font-size: 1.6rem; color: var(--muted); }

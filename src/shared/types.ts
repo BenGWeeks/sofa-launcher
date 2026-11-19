@@ -125,6 +125,8 @@ export interface SofaApi {
   /** The configured accelerator per global action ([buttons] in config.toml). */
   buttons(): Promise<Record<GlobalAction, string>>;
   about(): Promise<AboutInfo>;
+  /** Open the project's page on GitHub in the desktop's browser. */
+  openProject(): Promise<void>;
   /** Button test: release / reclaim the global shortcuts so raw keys reach the window. */
   buttonTest(active: boolean): Promise<void>;
   /** Remote guide closed; main returns to the app it was opened over, if any. */
