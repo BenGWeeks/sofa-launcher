@@ -44,6 +44,10 @@ All taken from the real app in demo mode (`npm run screenshot`).
 |---|---|
 | ![Remote guide](docs/screenshots/remote-guide.png) | ![Power menu](docs/screenshots/power-menu.png) |
 
+Settings → **About** shows the version, a link to this repository (Down, then OK opens it in the desktop's browser) and a Lightning QR code for saying thanks:
+
+![About](docs/screenshots/about.png)
+
 | Games row | Apps, games and cameras | Slide-up menu while watching |
 |---|---|---|
 | ![Home screen with a Games row](docs/screenshots/home-games.png) | ![Home screen with apps, games and cameras](docs/screenshots/home-games-cameras.png) | ![Slide-up menu](docs/screenshots/panel.png) |
