@@ -292,22 +292,23 @@
   .row { margin-top: 7rem; display: grid; grid-template-columns: repeat(6, 1fr); gap: 3rem 1.6rem; }
   /* Two or three rows (Apps plus Games and/or Cameras): each is one line that scrolls sideways,
      and the focus ring sits inside the tile so the scrolling row can never clip it. */
-  .rows .row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:calc((100% - 7.6rem) / 5); gap:1.6rem; overflow-x:auto; scrollbar-width:none; padding:1rem .6rem; margin-top:2rem; }
+  .rows .row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:calc((100% - 7.6rem) / 5); gap:1.6rem; overflow-x:auto; scrollbar-width:none; padding:1rem .7rem; scroll-padding-inline:.7rem; margin-top:2rem; }
   .rows h2 + .row { margin-top:0; }
-  /* The highlighted tile still grows a little: the row's padding has room for 8%, not the grid's 12%. */
+  /* The highlighted tile still grows a little (8%, not the grid's 12%): the row's side padding, kept
+     clear by scroll-padding, is just wider than the growth, so the ring is never cut at the edge. */
   .rows .row :global(.focused .tile) { transform:scale(1.08); box-shadow:none; --inner-ring:block; }
   /* With games, rows keep the focused tile clear of the edges (scroll-padding) and fade tiles
      that are only partly in view, like the slide-up panel; the negative margin keeps alignment. */
   .has-games .row { padding:1rem 1.6rem; margin-inline:-1rem; scroll-padding-inline:1.6rem;
-                    mask-image:linear-gradient(90deg, transparent 0, #000 1rem, #000 calc(100% - 1rem), transparent 100%); }
+                    mask-image:linear-gradient(90deg, transparent 0, #000 .4rem, #000 calc(100% - .4rem), transparent 100%); }
   /* Three rows: smaller tiles so everything fits on a 16:9 screen above the footer. */
   .compact .row { grid-auto-columns:calc((100% - 5 * 1.2rem - 1rem) / 6); gap:1.2rem; padding-block:.7rem .5rem; margin-top:1.2rem; }
   .compact .row :global(.slot) { --ts:.8; }
   .compact .row :global(.camera) { width:2.9rem; height:2.9rem; }
   .compact h2 { margin-top:.5rem; font-size:1.25rem; }
   /* Games, no cameras: the plain home's six-column Apps grid, closer to the header, then the
-     Games row lined up with it and scrolling sideways. Both use the inner focus ring (no scaling),
-     so the scrolling row can't clip it and the two rows look alike. */
+     Games row lined up with it and scrolling sideways. Both use the inner focus ring and a small growth (8%),
+     which the scrolling row has room for and the two rows look alike. */
   .wrapped .row { margin-top:1rem; gap:1rem 1.6rem; padding:.5rem 1rem; margin-inline:-1rem; }
   .wrapped .game-row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:calc((100% - 5 * 1.6rem) / 6);
                        overflow-x:auto; scrollbar-width:none; scroll-padding-inline:1rem; margin-top:.2rem;

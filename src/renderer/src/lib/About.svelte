@@ -54,12 +54,12 @@
         <img src={donateQr} alt="QR code: pay {DONATE_ADDRESS} over Bitcoin Lightning" />
         <div>
           <h4>Say thanks with Bitcoin</h4>
-          <p class="small">Scan with a Lightning wallet, or send to</p>
+          <p class="small">Scan with a Lightning wallet, or pay</p>
           <p class="address">{DONATE_ADDRESS}</p>
         </div>
       </section>
     </div>
-    <p class="keys"><span class="k">↓</span>GitHub link<span class="k">OK</span>{onLink ? 'Open' : 'Close'}<span class="k"><RemoteIcon name="back" /></span>Back</p>
+    <p class="keys"><span class="k">{onLink ? '↑' : '↓'}</span>{onLink ? 'Leave link' : 'GitHub link'}<span class="k">OK</span>{onLink ? 'Open' : 'Close'}<span class="k"><RemoteIcon name="back" /></span>Back</p>
   </div>
 </div>
 
@@ -83,7 +83,7 @@
   .github.focused { box-shadow: 0 0 0 0.22rem var(--focus-ring), 0 0 1.2rem var(--accent-glow); }
   .donate { display: flex; align-items: center; gap: 1.2rem; }
   /* White with its own quiet zone: a QR code must stay dark-on-light to scan. */
-  .donate img { width: 9.5rem; height: 9.5rem; border-radius: 0.6rem; background: #fff; flex-shrink: 0; }
+  .donate img { width: 11.5rem; height: 11.5rem; border-radius: 0.6rem; background: #fff; flex-shrink: 0; }
   .small { margin: 0.35rem 0 0; font-size: 1.05rem; color: var(--muted); }
   .address { margin: 0.3rem 0 0; font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 1rem; color: #e6e9f0; white-space: nowrap; }
   .keys { margin: 1.8rem 0 0; text-align: center; color: var(--muted); font-size: 1.2rem; }
