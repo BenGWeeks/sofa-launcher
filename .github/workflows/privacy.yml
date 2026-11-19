@@ -48,7 +48,8 @@ jobs:
           # has one, each occurrence standing on its own (not part of a longer name, address or
           # host) is blanked out and the rest of the line is tested again: the phrase passes,
           # while a part of it on its own, a longer string containing it, or anything else on
-          # the line is still caught.
+          # the line is still caught. (Bytes above ASCII count as part of a name, so an accented
+          # letter beside the phrase keeps it caught.)
           awk -v allow="$work/allow" -v hits="$work/hits" -v where2="$work/where" -v text2="$work/text" '
             BEGIN { while ((getline phrase < allow) > 0) if (phrase != "") phrases[++n] = tolower(phrase) }
             {
@@ -61,7 +62,7 @@ jobs:
                   at += from - 1
                   before = at > 1 ? substr(text, at - 1, 1) : ""
                   after = substr(text, at + len, 1); after2 = substr(text, at + len + 1, 1)
-                  if (before ~ /[A-Za-z0-9._%+\/-]/ || after ~ /[A-Za-z0-9_@\/:-]/ || (after == "." && after2 ~ /[A-Za-z0-9]/)) { from = at + 1; continue }
+                  if (before ~ /[A-Za-z0-9._%+\/\200-\377-]/ || after ~ /[A-Za-z0-9_@\/:\200-\377-]/ || (after == "." && after2 ~ /[A-Za-z0-9]/)) { from = at + 1; continue }
                   text = substr(text, 1, at - 1) " " substr(text, at + len); blanked = 1; from = at + 1
                 }
               }
