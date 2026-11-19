@@ -449,7 +449,9 @@ function configureContainers(): void {
     return;
   }
   const socket = config.containersRestartSocket;
-  containerRestarter = socket ? new ContainerRestarter(socket) : null;
+  // Keep the same client while the socket is unchanged: it knows whether a restart is running.
+  if (!socket) containerRestarter = null;
+  else if (!(containerRestarter instanceof ContainerRestarter) || containerRestarter.path !== socket) containerRestarter = new ContainerRestarter(socket);
   if (containerSource?.path === file) return;
   containerSource = new ContainerStatusSource({ path: file });
 }
@@ -1288,6 +1290,7 @@ function registerIpc(): void {
     const target = typeof name === 'string' ? containerSource?.snapshot().containers.find((c) => c.name === name) : undefined;
     if (!containerRestarter || !target) return { ok: false, message: 'Restarting isn’t set up for this container' };
     if (!target.restartable) return { ok: false, message: `${target.name} is protected from restarts` };
+    if (target.state !== 'running') return { ok: false, message: `${target.name} is not running` };
     const result = await containerRestarter.restart(target.name);
     void containerSource?.refresh(0).then(() => pushApps()).catch(() => undefined);
     return result;

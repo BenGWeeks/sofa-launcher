@@ -44,9 +44,13 @@
   /** Which panel button has the highlight, and whether we are asking "are you sure?". */
   let choice = $state<'close' | 'restart'>('close');
   let confirming = $state(false);
-  let restarting = $state(false);
+  /** The container being restarted (its name), while waiting for the answer. */
+  let restarting = $state<string | null>(null);
+  /** When the confirmation appeared: a double-click must not also be the answer to it. */
+  let askedAt = 0;
   let outcome = $state<{ ok: boolean; message: string } | null>(null);
-  const canRestart = $derived(!!snap?.canRestart && !!detail?.restartable);
+  /** Only what is running: this never starts something that was stopped. */
+  const canRestart = $derived(!!snap?.canRestart && !!detail?.restartable && detail.state === 'running');
 
   function openDetail(c: ContainerInfo | null) {
     detail = c; choice = 'close'; confirming = false; outcome = null;
@@ -55,9 +59,9 @@
   async function restart() {
     const target = detail;
     if (!target || restarting) return;
-    restarting = true; confirming = false; outcome = null;
+    restarting = target.name; confirming = false; outcome = null;
     const result = await window.sofaContainers.restart(target.name).catch(() => ({ ok: false, message: 'The launcher could not ask for the restart' }));
-    restarting = false; choice = 'close';
+    restarting = null; choice = 'close';
     if (detail?.name === target.name) outcome = result;
     void refresh(true);
   }
@@ -71,7 +75,13 @@
     if (choice === 'close') { if (confirming) confirming = false; else openDetail(null); }
     else if (confirming) void restart();
     // Asking moves the highlight to Cancel: a second OK by reflex must not restart anything.
-    else { confirming = true; choice = 'close'; outcome = null; }
+    else { confirming = true; choice = 'close'; outcome = null; askedAt = Date.now(); }
+  }
+
+  /** A mouse click on a panel button (the remote uses the keys). */
+  function click(which: 'close' | 'restart') {
+    if (confirming && which === 'restart' && Date.now() - askedAt < 700) return;
+    choice = which; panelKey('Enter');
   }
 
   const STATUS_WORDS: Record<ContainerColour, string> = { green: 'Running', amber: 'Not ready', red: 'Problem', grey: 'Stopped' };
@@ -180,6 +190,8 @@
       if (restarting) { /* wait for the answer */ } else if (confirming) confirming = false; else if (detail) openDetail(null); else onclose();
     } else if (e.key === 'Enter') {
       if (detail) panelKey('Enter'); else openDetail(cards[focus] ?? null);
+    } else if (e.key === ' ' && detail) {
+      // Space would press whichever button a mouse click left focused: only OK chooses.
     } else if (e.key.startsWith('Arrow')) {
       if (detail) { panelKey(e.key); e.preventDefault(); return; }
       focus = spatialMove(boxes(), focus, e.key);
@@ -256,7 +268,7 @@
                 {#each group.containers as c, i (c.id)}
                   {@const label = headings ? shortName(c.name, group.name) : c.name}
                   <button class="card {c.colour}" class:focused={offset + i === focus} tabindex="-1"
-                    onclick={() => { focus = offset + i; openDetail(c); }}>
+                    onclick={() => { if (!restarting) { focus = offset + i; openDetail(c); } }}>
                     {@render icon(c, label)}
                     <span class="text">
                       <span class="name">{label}</span>
@@ -319,14 +331,14 @@
       {#if canRestart || restarting || outcome}
         <div class="actions">
           {#if restarting}
-            <p class="note" role="status">Restarting {detail.name}…</p>
+            <p class="note" role="status">Restarting {restarting}…</p>
           {:else}
             {#if outcome}<p class="note {outcome.ok ? 'green' : 'red'}" role="status"><StatusGlyph colour={outcome.ok ? 'green' : 'red'} />{outcome.ok ? `${detail.name} was restarted` : outcome.message}</p>{/if}
             {#if confirming}<p class="note" role="alert">Restart {detail.name}? It will be unavailable for a moment.</p>{/if}
             {#if canRestart}
               <div class="buttons">
-                <button class:focused={choice === 'close'} tabindex="-1" onclick={() => { choice = 'close'; panelKey('Enter'); }}>{confirming ? 'Cancel' : 'Close'}</button>
-                <button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => { choice = 'restart'; panelKey('Enter'); }}>{confirming ? 'Restart now' : 'Restart'}</button>
+                <button class:focused={choice === 'close'} tabindex="-1" onclick={() => click('close')}>{confirming ? 'Cancel' : 'Close'}</button>
+                <button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => click('restart')}>{confirming ? 'Restart now' : 'Restart'}</button>
               </div>
             {/if}
           {/if}

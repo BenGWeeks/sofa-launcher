@@ -391,8 +391,9 @@ no other Docker command). The launcher still never talks to Docker; it sends
   the socket's group (`sofa-docker` in the example) can open it. For any other
   account the details panel has no Restart button, and the socket would refuse
   them anyway.
-- **Which containers:** any, except those whose compose file sets the label
-  `sofa.restart: "false"`. The service checks the label itself.
+- **Which containers:** any that is running, except those whose compose file sets
+  the label `sofa.restart: "false"`. The service checks both itself. It never
+  starts a container that was stopped.
 - **On the remote:** OK on a card, → to **Restart**, OK, then → and OK again on
   **Restart now**. The confirmation starts on **Cancel**, so a second OK by reflex
   does nothing.

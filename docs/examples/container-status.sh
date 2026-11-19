@@ -5,7 +5,7 @@
 # It writes only: name, image, state, status, health, the compose project and service,
 # a description, and CPU and memory use. Never env, mounts, commands or other labels.
 #
-# A service labelled  sofa.restart: "false"  is published as not restartable (see
+# A service labelled  sofa.restart: "false"  (and any container that is not running) is published as not restartable (see
 # container-restart/, which refuses it whatever this file says).
 #
 # Description: the compose label `sofa.description` if a service sets one, otherwise the
@@ -53,7 +53,7 @@ while :; do
               Description: ((if .d != "" then .d else .i end) | gsub("\\s+"; " ") | .[0:240])}
              + (if $c.State == "running" and $u.cpu != null then {Cpu: $u.cpu} else {} end)
              + (if $c.State == "running" and $u.mem != null then {Mem: $u.mem} else {} end)
-             + (if .r == "false" then {Restartable: false} else {} end)]
+             + (if (.r | ascii_downcase | gsub("\\s"; "") | IN("false", "no", "off", "0")) or $c.State != "running" then {Restartable: false} else {} end)]
        | sort_by(.Names[0])' >"$tmp"; then
     chmod 644 "$tmp"; mv -f "$tmp" "$out"; tmp=''
   else

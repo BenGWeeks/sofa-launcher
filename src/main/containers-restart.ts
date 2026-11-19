@@ -24,7 +24,7 @@ const clean = (text: string) => text.replace(/[^\x20-\x7e]/g, '').trim().slice(0
 export class ContainerRestarter implements Restarter {
   private busy = false;
 
-  constructor(private readonly path: string, private readonly timeoutMs = 150_000) {
+  constructor(readonly path: string, private readonly timeoutMs = 150_000) {
     if (!path.startsWith('/')) throw new Error('The restart socket must be an absolute path');
   }
 
