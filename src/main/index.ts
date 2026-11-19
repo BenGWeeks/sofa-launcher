@@ -1484,6 +1484,9 @@ async function runScreenshot(path: string): Promise<void> {
     if (!await focused('app-row', 'Prime Video')) throw new Error('Up must move within the Apps grid');
     for (let i = 0; i < 6; i++) await press('ArrowLeft');
     if (!await focused('app-row', 'Jellyfin')) throw new Error('Left must reach the first app');
+    // Leave the screen as it started for the picture: the walk above scrolled the Games row to its end.
+    await js("document.querySelectorAll('.row').forEach((row) => { row.scrollLeft = 0; })");
+    await new Promise(r => setTimeout(r, 150));
     for (const [selector, what] of [['.app-row', 'Apps'], ['.game-row', 'Games']]) {
       if (!await js(`(() => { const r = document.querySelector('${selector}').getBoundingClientRect(); const f = document.querySelector('footer').getBoundingClientRect(); return r.top >= 0 && r.bottom <= f.top + 1; })()`)) throw new Error(`${what} must sit above the footer, unclipped`);
     }

@@ -28,8 +28,9 @@ export function screenshotConfig(theme: Theme = 'knowall', cameras: boolean | nu
   return config;
 }
 
-/** Fictional Steam games for screenshots (`--demo-games`). Art is generated, never real cover art. */
 /**
+ * Stand-in Steam games for the Games row in demo mode. Some carry real games' names so the
+ * row looks like a real living room, but none carries a real game's cover art.
  * `art`: a picture in docs/demo-art (see its README: made for this project, except Space
  * Zappers' own banner). The repository has them; the packaged app does not, and falls back to
  * `hue` (a gradient) or the name.
