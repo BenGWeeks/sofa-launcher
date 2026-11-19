@@ -307,7 +307,7 @@
   .camera-row :global(.focused .tile) { background:var(--accent); color:var(--accent-contrast); }
   h2 { margin:1.2rem 0 0 .6rem; font-size:1.5rem; color:var(--muted); }
   .empty { grid-column: 1 / -1; font-size: 1.6rem; color: var(--muted); }
-  .hints { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.3rem 4rem; display: flex; gap: 2.4rem;
+  .hints { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.3rem 4rem; display: flex; align-items: center; gap: 2.4rem;
            font-size: 1.2rem; color: #9aa4b6; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); }
   /* The app's own mark, quiet enough not to compete with the tiles or the footer hints. */
   .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.55rem; white-space: nowrap; }
