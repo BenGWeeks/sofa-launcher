@@ -1,4 +1,5 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, nativeImage, screen, session, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, nativeImage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { PROJECT_URL } from '@shared/project';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { homedir, hostname, userInfo } from 'node:os';
@@ -1235,6 +1236,12 @@ function registerIpc(): void {
     return (await openApp(apps.lastAppId)).ok;
   });
   handle('launcher:buttons', () => config.buttons);
+  // The About screen's link. The address is fixed here: the page cannot choose what opens.
+  handle('launcher:openProject', async () => {
+    if (DEMO) return;
+    try { await shell.openExternal(PROJECT_URL); }
+    catch { toast('Couldn’t open the browser'); }
+  });
   handle('launcher:about', (e): AboutInfo => {
     let sandboxed = false;
     try {
@@ -1242,7 +1249,9 @@ function registerIpc(): void {
     } catch {
       /* /proc unreadable */
     }
-    return { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, configPath, sandboxed };
+    return { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+      // Screenshots must not show whoever took them: demo mode names the usual place.
+      configPath: DEMO ? '~/.config/sofa-launcher/config.toml' : configPath, sandboxed };
   });
   handle('launcher:buttonTest', (_e, active) => setButtonTest(active === true));
   handle('launcher:guideClosed', () => {

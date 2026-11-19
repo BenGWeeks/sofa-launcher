@@ -27,6 +27,7 @@ const api: SofaApi = {
   returnToLastApp: () => ipcRenderer.invoke('launcher:lastApp'),
   buttons: () => ipcRenderer.invoke('launcher:buttons') as Promise<Record<GlobalAction, string>>,
   about: () => ipcRenderer.invoke('launcher:about') as Promise<AboutInfo>,
+  openProject: () => ipcRenderer.invoke('launcher:openProject'),
   buttonTest: (active) => ipcRenderer.invoke('launcher:buttonTest', active === true),
   overlayChanged: (open) => ipcRenderer.invoke('launcher:overlay', open),
   guideClosed: () => ipcRenderer.invoke('launcher:guideClosed'),
