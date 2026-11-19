@@ -349,11 +349,36 @@ launcher only reads that file. It never talks to Docker.
 The file is a JSON array of
 `{"Id", "Names", "Image", "State", "Status", "Health": {"Status"}, "Project", "Service"}`
 (the Docker Engine API's names; `Project` and `Service` are the compose labels,
-empty when not set). It is treated as untrusted: at most 2 MB and 500 entries,
+empty when not set), plus three optional fields: `Description` (a sentence),
+`Cpu` (percent of one core) and `Mem` (bytes in use).
+[`docs/examples/container-status.sh`](docs/examples/container-status.sh) is a
+writer that produces all of it. It is treated as untrusted: at most 2 MB and 500 entries,
 every field validated and length-capped, unknown fields ignored. If a read fails
 (missing, unreadable, invalid JSON), the view keeps the last good data, greyed,
 with the error. If the file is more than a minute old, the view says the status is
 stale: its writer may have stopped. Either way the tile's dot is at least amber.
+
+**Descriptions.** A card shows what its container is for when the status file says
+so, and the details panel shows it in full. The example writer takes it from a
+compose label, falling back to the description the image itself carries
+(`org.opencontainers.image.description`, which many published images set):
+
+```yaml
+services:
+  sonarr:
+    labels:
+      sofa.description: "Finds new TV episodes and files them in the library."
+```
+
+**Last 24 hours.** The details panel (OK on a card) shows a status strip for the
+last day with the share of time the container was running normally, and, when the
+file publishes `Cpu` and `Mem`, a line for each. The launcher records this itself:
+it reads the status file once a minute, whatever is on screen, and keeps ten-minute
+slices in `~/.local/state/sofa-launcher/containers-history.json`. A slice shows the
+worst status seen in it, so a short outage stays visible. Time the launcher was not
+running, or the file was stale, is drawn as **No reading**, never guessed.
+
+![A container's details: description, status over 24 hours, CPU and memory](docs/screenshots/containers-details.png)
 
 Stacks whose names share a first word with another stack are shown together
 (`t3-stack`, `t3-host-relay` → **t3**); containers without a stack go under

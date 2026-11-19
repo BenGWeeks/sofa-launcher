@@ -12,7 +12,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
   Id: ID, Names: ['/web'], Image: 'nginx:1.27', State: 'running', Status: 'Up 2 hours', ...over,
 });
 const info = (name: string, colour: ContainerInfo['colour'], project = '', service = '', image = 'x:1'): ContainerInfo =>
-  ({ id: name.padEnd(12, '0').slice(0, 12), name, image, state: 'running', status: '', project, service, colour, word: '', line: '' });
+  ({ id: name.padEnd(12, '0').slice(0, 12), name, image, state: 'running', status: '', project, service, colour, word: '', line: '', description: '', cpu: null, mem: null });
 
 describe('container status: red / amber / green / grey', () => {
   it.each([
@@ -70,7 +70,7 @@ describe('status file validation', () => {
     }));
     expect(c).toEqual({
       id: 'aaaaaaaaaaaa', name: 'alerts-docker-proxy', image: 'tecnativa/docker-socket-proxy:v0.5.0', state: 'running',
-      status: 'Up 28 hours (unhealthy)', project: 'alerts', service: 'docker-proxy', colour: 'red', word: 'unhealthy', line: 'Up 28 hours',
+      status: 'Up 28 hours (unhealthy)', project: 'alerts', service: 'docker-proxy', colour: 'red', word: 'unhealthy', line: 'Up 28 hours', description: '', cpu: null, mem: null,
     });
   });
 

@@ -66,5 +66,6 @@ contextBridge.exposeInMainWorld('sofa', api);
 const containers: ContainersApi = {
   snapshot: (fresh) => ipcRenderer.invoke('containers:snapshot', fresh === true),
   onShow: (cb) => subscribe<void>('containers:show', () => cb()),
+  history: (name) => ipcRenderer.invoke('containers:history', name),
 };
 contextBridge.exposeInMainWorld('sofaContainers', containers);

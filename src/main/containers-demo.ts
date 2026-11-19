@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { parseConfig, type Config } from './config';
 import type { StatusFileReader } from './containers-status';
+import type { ContainerHistory } from './containers-history';
+import { HISTORY_BUCKETS, HISTORY_BUCKET_MS, type ContainerInfo } from '@shared/containers';
 
 /** Where the demo pretends the status file is (never read: demo mode injects a reader). */
 export const DEMO_CONTAINERS_FILE = '/var/lib/docker-status/containers.json';
@@ -74,6 +76,58 @@ const ROWS: Row[] = [
   ['paused-job', '', '', 'python:3.13-slim', 'paused', up('6 hours') + ' (Paused)'],
 ];
 
+/** What a few of the demo services are for (as a compose label or the image's own label would say). */
+const DESCRIPTIONS: Record<string, string> = {
+  jellyfin: 'Streams the film, TV and music library to every screen in the house.',
+  jellyseerr: 'Lets the family request films and series for the media library.',
+  sonarr: 'Finds new TV episodes and files them in the library.',
+  radarr: 'Finds films and files them in the library.',
+  homeassistant: 'Runs the home: lights, heating, sensors and automations.',
+  frigate: 'Records the cameras and spots people, cars and animals.',
+  mosquitto: 'Message broker the smart-home devices talk through.',
+  pihole: 'Blocks adverts and trackers for the whole network.',
+  vaultwarden: 'The family password manager.',
+  'uptime-kuma': 'Checks that services answer and raises the alarm when they stop.',
+  grafana: 'Dashboards for the server’s metrics.',
+  'machine-learning': 'Recognises faces and objects in the photo library.',
+  server: 'The photo library’s web and mobile back end.',
+  webserver: 'Scans, files and searches the household paperwork.',
+  whisper: 'Turns speech into text for the voice assistant.',
+  piper: 'Speaks the voice assistant’s replies.',
+};
+
+/** A steady, made-up load for a demo container: the same every run. */
+function demoLoad(name: string): { cpu: number; mem: number } {
+  const h = createHash('sha256').update(`load:${name}`).digest();
+  return { cpu: Math.round((0.2 + (h[0]! / 255) ** 3 * 60) * 10) / 10, mem: Math.round((40 + (h[1]! / 255) ** 2 * 1900) * 1024 * 1024) };
+}
+
+/**
+ * A day of made-up history for the screenshots: steady containers, a daily rhythm in the load,
+ * and an outage or two for the ones that are in trouble now.
+ */
+export function fillDemoHistory(history: ContainerHistory, containers: ContainerInfo[], now: number): void {
+  for (let i = HISTORY_BUCKETS - 1; i >= 0; i--) {
+    const t = now - i * HISTORY_BUCKET_MS;
+    const wave = 1 + 0.5 * Math.sin((HISTORY_BUCKETS - i) / 11);
+    history.record(containers.map((c) => {
+      const h = createHash('sha256').update(`history:${c.name}`).digest();
+      const start = 20 + (h[2]! % 90);
+      const wasFine = c.colour !== 'green' && i > (c.colour === 'grey' ? start : 6 + (h[3]! % 30));
+      const blip = c.colour === 'green' && h[4]! % 5 === 0 && i >= start && i < start + 2;
+      const jitter = 0.8 + ((h[(i % 20) + 5]! / 255) * 0.5);
+      const base = demoLoad(c.name);
+      const running = wasFine || c.colour === 'green';
+      return {
+        ...c,
+        colour: blip ? 'amber' as const : wasFine ? 'green' as const : c.colour,
+        cpu: running && !blip ? Math.round(base.cpu * wave * jitter * 10) / 10 : c.colour === 'red' && c.state === 'running' ? base.cpu * 2.5 * jitter : null,
+        mem: running && !blip ? Math.round(base.mem * (0.85 + 0.15 * wave)) : c.state === 'running' ? base.mem : null,
+      };
+    }), t);
+  }
+}
+
 const digest = (name: string) => createHash('sha256').update(`demo:${name}`).digest('hex');
 
 /** The rows in the status file's shape (sorted by name, as the real writer does). */
@@ -88,6 +142,8 @@ export function demoStatusEntries(): unknown[] {
     ...(health ? { Health: { Status: health } } : status.includes('(healthy)') ? {} : { Health: { Status: 'none' } }),
     Project: project,
     Service: service,
+    ...(DESCRIPTIONS[service] ? { Description: DESCRIPTIONS[service] } : {}),
+    ...(state === 'running' || state === 'paused' ? { Cpu: demoLoad(name).cpu, Mem: demoLoad(name).mem } : {}),
   })).sort((a, b) => a.Names[0]!.localeCompare(b.Names[0]!));
 }
 
