@@ -50,7 +50,9 @@ jobs:
           # while a part of it on its own, a longer string containing it, or anything else on
           # the line is still caught. (Bytes above ASCII count as part of a name, so an accented
           # letter beside the phrase keeps it caught.)
-          awk -v allow="$work/allow" -v hits="$work/hits" -v where2="$work/where" -v text2="$work/text" '
+          # LC_ALL=C: awk works on bytes, the same on every runner (gawk rejects a byte range in
+          # a UTF-8 locale, mawk ignores the locale).
+          LC_ALL=C awk -v allow="$work/allow" -v hits="$work/hits" -v where2="$work/where" -v text2="$work/text" '
             BEGIN { while ((getline phrase < allow) > 0) if (phrase != "") phrases[++n] = tolower(phrase) }
             {
               if (match($0, /^[^:]*:[0-9]+:/)) { where = substr($0, 1, RLENGTH - 1); text = substr($0, RLENGTH + 1) }
