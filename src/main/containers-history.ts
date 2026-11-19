@@ -1,3 +1,4 @@
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
@@ -5,7 +6,7 @@ import {
   type ContainerColour, type ContainerHistorySeries, type ContainerInfo, type HistoryPoint,
 } from '@shared/containers';
 
-/** Worst first when a slice saw more than one status: a short outage must stay visible. */
+/** Mildest to worst. A slice that saw more than one status keeps the worst: a short outage must stay visible. */
 const SEVERITY: ContainerColour[] = ['green', 'grey', 'amber', 'red'];
 const MAX_NAMES = 500;
 const MAX_HISTORY_BYTES = 8 * 1024 * 1024;
@@ -21,6 +22,7 @@ type Bucket = [n: number, up: number, worst: number, cpuSum: number, cpuN: numbe
 export class ContainerHistory {
   private names = new Map<string, Map<number, Bucket>>();
   private dirty = false;
+  private saving: Promise<void> | null = null;
 
   /** Add one reading of every container. */
   record(containers: ContainerInfo[], now: number): void {
@@ -43,10 +45,14 @@ export class ContainerHistory {
     this.dirty = true;
   }
 
+  /**
+   * Drop slices older than a day. Slices a little "ahead" of now are kept: the clock was stepped
+   * back (or not yet set after boot), and they are real readings. `series` leaves them out.
+   */
   private prune(index: number): void {
     const oldest = index - HISTORY_BUCKETS + 1;
     for (const [name, buckets] of this.names) {
-      for (const i of buckets.keys()) if (i < oldest || i > index) buckets.delete(i);
+      for (const i of buckets.keys()) if (i < oldest || i > index + HISTORY_BUCKETS) buckets.delete(i);
       if (!buckets.size) this.names.delete(name);
     }
   }
@@ -87,7 +93,7 @@ export class ContainerHistory {
         if (!Array.isArray(row) || row.length !== 7) continue;
         const [i, count, up, worst, cpuSum, cpuN, mem] = row as number[];
         if (!whole(i, 1e9) || !whole(count, 1e6) || !whole(up, count!) || !whole(worst, 3) || !whole(cpuN, count!)) continue;
-        if (typeof cpuSum !== 'number' || !Number.isFinite(cpuSum) || cpuSum < 0 || typeof mem !== 'number' || !Number.isFinite(mem) || mem < -1) continue;
+        if (typeof cpuSum !== 'number' || !(cpuSum >= 0 && cpuSum <= 100_000 * count!) || typeof mem !== 'number' || !(mem >= -1 && mem <= 2 ** 50)) continue;
         buckets.set(i!, [count!, up!, worst!, cpuSum, cpuN!, mem]);
       }
       if (buckets.size) this.names.set(name, buckets);
@@ -103,13 +109,31 @@ export class ContainerHistory {
   }
 
   /** Write the history if it changed (atomically, readable by this user only). */
-  async save(path: string): Promise<void> {
+  save(path: string): Promise<void> {
+    // One write at a time: a second caller waits for the first, then writes what changed since.
+    const run = async (): Promise<void> => {
+      if (!this.dirty) return;
+      this.dirty = false;
+      try {
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        await writeFile(`${path}.tmp`, JSON.stringify(this.toJSON()), { mode: 0o600 });
+        await rename(`${path}.tmp`, path);
+      } catch { this.dirty = true; }
+    };
+    const next = (this.saving ?? Promise.resolve()).then(run);
+    this.saving = next.finally(() => { if (this.saving === wrapped) this.saving = null; });
+    const wrapped = this.saving;
+    return next;
+  }
+
+  /** For quitting, when nothing waits for a promise. Best effort. */
+  saveSync(path: string): void {
     if (!this.dirty) return;
-    this.dirty = false;
     try {
-      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-      await writeFile(`${path}.tmp`, JSON.stringify(this.toJSON()), { mode: 0o600 });
-      await rename(`${path}.tmp`, path);
-    } catch { this.dirty = true; }
+      mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+      writeFileSync(`${path}.quit.tmp`, JSON.stringify(this.toJSON()), { mode: 0o600 });
+      renameSync(`${path}.quit.tmp`, path);
+      this.dirty = false;
+    } catch { /* keep what was saved last */ }
   }
 }

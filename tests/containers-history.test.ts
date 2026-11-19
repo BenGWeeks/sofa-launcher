@@ -74,15 +74,43 @@ describe('container history', () => {
   it('ignores a damaged or hostile history file', async () => {
     const h = new ContainerHistory();
     const index = T0 / HISTORY_BUCKET_MS;
-    h.restore({ v: 1, bucketMs: HISTORY_BUCKET_MS, names: {
+    // JSON.parse, so "__proto__" is a real key (in an object literal it would set the prototype).
+    h.restore(JSON.parse(JSON.stringify({ v: 1, bucketMs: HISTORY_BUCKET_MS, names: {
       'bad name!': [[index, 1, 1, 0, 0, 0, -1]],
-      web: [[index, 1, 5, 0, 0, 0, -1], [index, 1, 1, 9, 0, 0, -1], 'x', [index - 1, 2, 1, 2, 4, 2, 10]],
-      __proto__: [[index, 1, 1, 0, 0, 0, -1]],
-    } }, T0);
+      web: [[index, 1, 5, 0, 0, 0, -1], [index, 1, 1, 9, 0, 0, -1], 'x', [index - 1, 2, 1, 2, 4, 2, 10],
+        [index - 2, 1, 1, 0, 1e300, 1, -1], [index - 3, 1, 1, 0, 0, 0, 1e300]],
+    } }).replace('"web"', '"__proto__":[[1,1,1,0,0,0,-1]],"web"')), T0);
+    expect(({} as Record<string, unknown>).v).toBeUndefined();
     h.restore({ v: 2 }, T0); h.restore('nope', T0); h.restore(null, T0);
     expect(h.series('web', T0).coveredMs).toBe(HISTORY_BUCKET_MS);
     expect(h.series('web', T0).points.at(-2)).toEqual({ colour: 'amber', cpu: 2, mem: 10 });
     expect(h.series('bad name!', T0).coveredMs).toBe(0);
     await h.load('/nonexistent/sofa/history.json', T0);
+  });
+
+  it('keeps its readings when the clock steps back', () => {
+    const h = new ContainerHistory();
+    h.record([c('web', 'green')], T0);
+    h.record([c('web', 'green')], T0 - 6 * HISTORY_BUCKET_MS);
+    const again = new ContainerHistory();
+    again.restore(h.toJSON(), T0 - 3600_000 * 20);
+    expect(again.series('web', T0).coveredMs).toBe(2 * HISTORY_BUCKET_MS);
+  });
+
+  it('writes once for overlapping saves and nothing when unchanged', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sofa-history-'));
+    try {
+      const file = join(dir, 'history.json');
+      const h = new ContainerHistory();
+      await h.save(file);
+      expect(() => statSync(file)).toThrow();
+      h.record([c('web', 'green')], T0);
+      await Promise.all([h.save(file), h.save(file)]);
+      h.record([c('web', 'red')], T0 + 60_000);
+      h.saveSync(file);
+      const again = new ContainerHistory();
+      await again.load(file, T0 + 60_000);
+      expect(again.series('web', T0 + 60_000).points.at(-1)!.colour).toBe('red');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

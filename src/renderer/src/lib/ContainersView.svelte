@@ -37,7 +37,8 @@
     const next = await window.sofaContainers.history(name).catch(() => null);
     if (detail?.name === name) history = next;
   }
-  $effect(() => { void detail?.name; void snap; void loadHistory(); });
+  $effect(() => { void detail?.name; void loadHistory(); });
+  let polls = 0;
 
   const STATUS_WORDS: Record<ContainerColour, string> = { green: 'Running', amber: 'Not ready', red: 'Problem', grey: 'Stopped' };
   const ORDER: ContainerColour[] = ['green', 'amber', 'red', 'grey'];
@@ -75,7 +76,7 @@
       lastX = x;
     });
     if (open) area += `L${lastX} 38L${startX} 38Z`;
-    return { line, area, peak, latest: known.at(-1)! };
+    return { line, area, peak };
   }
   const cpu = $derived(trace('cpu'));
   const mem = $derived(trace('mem'));
@@ -112,6 +113,8 @@
       const next = await window.sofaContainers.snapshot(fresh);
       const focusedId = cards[focus]?.id;
       snap = next;
+      // The history gains a reading a minute: no need to redraw it on every 10 s poll.
+      if (++polls % 6 === 0) void loadHistory();
       await tick();
       // Keep the highlight on the same container across refreshes (the order can change).
       const i = focusedId ? cards.findIndex((c) => c.id === focusedId) : -1;
@@ -266,12 +269,12 @@
             {#each seen as colour}<span class="{colour}"><StatusGlyph {colour} />{STATUS_WORDS[colour]}</span>{/each}
             {#if gaps}<span><i class="none"></i>No reading</span>{/if}
           </p>
-          {#each [{ title: 'CPU', t: cpu, text: cpuText, unit: ' of a core' }, { title: 'Memory', t: mem, text: memText, unit: '' }] as chart (chart.title)}
+          {#each [{ title: 'CPU', t: cpu, now: detail.cpu, text: cpuText, unit: ' of a core' }, { title: 'Memory', t: mem, now: detail.mem, text: memText, unit: '' }] as chart (chart.title)}
             {#if chart.t}
               <div class="usage">
-                <p><b>{chart.title}</b><span>{chart.text(chart.t.latest)}{chart.unit} now</span><span class="peak">peak {chart.text(chart.t.peak)}</span></p>
+                <p><b>{chart.title}</b><span>{chart.now === null ? 'not running now' : `${chart.text(chart.now)}${chart.unit} now`}</span><span class="peak">peak {chart.text(chart.t.peak)}</span></p>
                 <svg viewBox="0 0 {history.points.length} 40" preserveAspectRatio="none" role="img"
-                  aria-label="{chart.title} over the last 24 hours: now {chart.text(chart.t.latest)}, peak {chart.text(chart.t.peak)}">
+                  aria-label="{chart.title} over the last 24 hours: {chart.now === null ? 'not running now' : `now ${chart.text(chart.now)}`}, peak {chart.text(chart.t.peak)}">
                   <line class="base" x1="0" y1="38" x2={history.points.length} y2="38" />
                   <path class="area" d={chart.t.area} /><path class="trace" d={chart.t.line} />
                 </svg>
@@ -353,7 +356,9 @@
   dt { color: var(--muted); }
   dd { margin: 0; word-break: break-word; }
   .mono-text { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 1.05rem; }
-  .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; }
+  /* Three lines at most: the panel cannot scroll, and the charts below must stay on screen. */
+  .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
+           -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
   /* History: status colours are the view's own (always beside a glyph and word in the legend);
      the usage lines are one neutral blue each on its own scale, with the numbers in text. */
   .history { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.3rem; padding-top: 0.9rem; border-top: 1px solid #262e3c; }
@@ -375,6 +380,9 @@
   .usage .trace { fill: none; stroke: #6aa9ff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
   .usage .area { fill: rgba(106, 169, 255, 0.14); }
   .usage .base { stroke: #2c3546; stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .hint { margin-top: auto; color: var(--muted); font-size: 1.1rem; }
+  .history { min-height: 0; overflow: hidden; }
+  .head, .detail > .badge, dl { flex-shrink: 0; }
+  h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .hint { flex-shrink: 0; margin-top: auto; color: var(--muted); font-size: 1.1rem; }
   .hint .k { margin-left: 0.2rem; }
 </style>

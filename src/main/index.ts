@@ -1646,7 +1646,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
   app.on('will-quit', () => {
     idlePointer.stop();
     if (historyTimer) clearInterval(historyTimer);
-    void containerHistory.save(containerHistoryFile);
+    if (!DEMO) containerHistory.saveSync(containerHistoryFile); // demo history is made up: never keep it
     cameraInputs?.dispose();
     watchdog.stop();
     globalShortcut.unregisterAll();
