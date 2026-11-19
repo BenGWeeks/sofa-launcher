@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Restart ONE named container for Sofa Launcher, and nothing else.
+#
+# Started by systemd for each connection to sofa-container-restart.socket, with the connection
+# as stdin and stdout. Who may connect is set by that socket's group (SocketGroup=), so this
+# script never decides who is asking: only what they may ask for.
+#
+# Request: one line, "restart <container name>".  Reply: one line, "ok" or "error <reason>".
+#
+# A container whose compose file sets the label  sofa.restart: "false"  is refused.
+set -uo pipefail
+reply() { printf '%s\n' "$1"; exit 0; }
+
+IFS= read -r -t 5 -n 200 line || reply 'error bad request'
+[[ $line =~ ^restart\ ([A-Za-z0-9][A-Za-z0-9_.-]{0,127})$ ]] || reply 'error bad request'
+name=${BASH_REMATCH[1]}
+
+# The name must be a container that exists, addressed by its name (not an id prefix).
+found=$(timeout 15 docker inspect --type container --format '{{.Name}}|{{index .Config.Labels "sofa.restart"}}' "$name" 2>/dev/null) ||
+  reply 'error there is no such container'
+[[ ${found%%|*} == "/$name" ]] || reply 'error there is no such container'
+[[ ${found#*|} != false ]] || reply 'error this container is protected from restarts'
+
+# The instance name of a socket-activated unit ends "-<pid>-<uid>" of the caller.
+logger -t sofa-container-restart "restart of $name requested (connection ${SOFA_PEER:-unknown})" 2>/dev/null || true
+if timeout 120 docker restart "$name" >/dev/null 2>&1; then reply ok; fi
+reply 'error Docker could not restart it'

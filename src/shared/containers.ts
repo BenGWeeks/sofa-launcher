@@ -30,6 +30,8 @@ export interface ContainerInfo {
   cpu: number | null;
   /** Memory in use, in bytes; null when not published. */
   mem: number | null;
+  /** False when the status file marks the container as not to be restarted from the launcher. */
+  restartable: boolean;
 }
 
 /** One slice of a container's history (HISTORY_BUCKET_MS long). */
@@ -70,7 +72,11 @@ export interface ContainersSnapshot {
   stale: boolean;
   /** Entries left out because the file had more than MAX_ENTRIES, or entries that failed validation. */
   skipped: number;
+  /** This account may restart containers: a restart service is set up and lets this user in. */
+  canRestart: boolean;
 }
+
+export interface RestartResult { ok: boolean; message: string }
 
 /** The API the preload exposes as window.sofaContainers. */
 export interface ContainersApi {
@@ -80,6 +86,8 @@ export interface ContainersApi {
   onShow(cb: () => void): () => void;
   /** The last 24 hours of one container, as recorded by the launcher; null when not set up. */
   history(name: string): Promise<ContainerHistorySeries | null>;
+  /** Ask the restart service to restart one container. Refused unless `canRestart`. */
+  restart(name: string): Promise<RestartResult>;
 }
 
 export const MAX_ENTRIES = 500;
@@ -199,6 +207,7 @@ export function parseEntry(raw: unknown): ContainerInfo | null {
     description: text(r.Description, 240) ?? '',
     cpu: amount(r.Cpu, 100_000),
     mem: amount(r.Mem, 2 ** 50),
+    restartable: r.Restartable !== false,
   };
 }
 

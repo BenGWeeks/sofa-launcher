@@ -12,7 +12,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
   Id: ID, Names: ['/web'], Image: 'nginx:1.27', State: 'running', Status: 'Up 2 hours', ...over,
 });
 const info = (name: string, colour: ContainerInfo['colour'], project = '', service = '', image = 'x:1'): ContainerInfo =>
-  ({ id: name.padEnd(12, '0').slice(0, 12), name, image, state: 'running', status: '', project, service, colour, word: '', line: '', description: '', cpu: null, mem: null });
+  ({ id: name.padEnd(12, '0').slice(0, 12), name, image, state: 'running', status: '', project, service, colour, word: '', line: '', description: '', cpu: null, mem: null, restartable: true });
 
 describe('container status: red / amber / green / grey', () => {
   it.each([
@@ -70,7 +70,7 @@ describe('status file validation', () => {
     }));
     expect(c).toEqual({
       id: 'aaaaaaaaaaaa', name: 'alerts-docker-proxy', image: 'tecnativa/docker-socket-proxy:v0.5.0', state: 'running',
-      status: 'Up 28 hours (unhealthy)', project: 'alerts', service: 'docker-proxy', colour: 'red', word: 'unhealthy', line: 'Up 28 hours', description: '', cpu: null, mem: null,
+      status: 'Up 28 hours (unhealthy)', project: 'alerts', service: 'docker-proxy', colour: 'red', word: 'unhealthy', line: 'Up 28 hours', description: '', cpu: null, mem: null, restartable: true,
     });
   });
 
@@ -227,6 +227,15 @@ describe('[containers] config', () => {
   it('reads an absolute status file path', () => {
     expect(parseConfig('[containers]\nfile = "/var/lib/docker-status/containers.json"').containersFile).toBe('/var/lib/docker-status/containers.json');
     expect(parseConfig('').containersFile).toBeUndefined();
+  });
+
+  it('reads an optional restart socket, never Docker’s', () => {
+    const body = '[containers]\nfile = "/s/containers.json"\nrestart_socket = ';
+    expect(parseConfig(`${body}"/run/sofa-container-restart.sock"`).containersRestartSocket).toBe('/run/sofa-container-restart.sock');
+    expect(parseConfig('[containers]\nfile = "/s/containers.json"').containersRestartSocket).toBeUndefined();
+    for (const bad of ['"/var/run/docker.sock"', '"/run/user/1000/docker.sock"', '"restart.sock"', '"/run/../etc/x"']) {
+      expect(() => parseConfig(body + bad)).toThrow(ConfigError);
+    }
   });
 
   it.each([

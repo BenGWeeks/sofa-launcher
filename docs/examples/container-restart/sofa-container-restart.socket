@@ -1,0 +1,15 @@
+[Unit]
+Description=Sofa Launcher: restart a container (socket)
+
+[Socket]
+ListenStream=/run/sofa-container-restart.sock
+# Only members of this group may ask for a restart. Add accounts with:
+#   sudo groupadd --system sofa-docker && sudo gpasswd -a <account> sofa-docker
+SocketUser=root
+SocketGroup=sofa-docker
+SocketMode=0660
+Accept=yes
+MaxConnections=2
+
+[Install]
+WantedBy=sockets.target

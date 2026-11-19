@@ -5,6 +5,9 @@
 # It writes only: name, image, state, status, health, the compose project and service,
 # a description, and CPU and memory use. Never env, mounts, commands or other labels.
 #
+# A service labelled  sofa.restart: "false"  is published as not restartable (see
+# container-restart/, which refuses it whatever this file says).
+#
 # Description: the compose label `sofa.description` if a service sets one, otherwise the
 # image's own `org.opencontainers.image.description` label, otherwise empty.
 #
@@ -38,7 +41,7 @@ while :; do
   fi
   n=$((n + 1))
   tmp=$(mktemp "$out.XXXXXX")
-  fmt='{"c":{{json .}},"p":{{json (.Label "com.docker.compose.project")}},"s":{{json (.Label "com.docker.compose.service")}},"d":{{json (.Label "sofa.description")}},"i":{{json (.Label "org.opencontainers.image.description")}}}'
+  fmt='{"c":{{json .}},"p":{{json (.Label "com.docker.compose.project")}},"s":{{json (.Label "com.docker.compose.service")}},"d":{{json (.Label "sofa.description")}},"i":{{json (.Label "org.opencontainers.image.description")}},"r":{{json (.Label "sofa.restart")}}}'
   # Health is also in the Status text ("Up 2 hours (healthy)"), which the launcher reads when
   # this docker version has no HealthStatus field.
   if timeout 30 docker ps -a --no-trunc --format "$fmt" |
@@ -49,7 +52,8 @@ while :; do
               Health: {Status: ($c.HealthStatus // "none")}, Project: .p, Service: .s,
               Description: ((if .d != "" then .d else .i end) | gsub("\\s+"; " ") | .[0:240])}
              + (if $c.State == "running" and $u.cpu != null then {Cpu: $u.cpu} else {} end)
-             + (if $c.State == "running" and $u.mem != null then {Mem: $u.mem} else {} end)]
+             + (if $c.State == "running" and $u.mem != null then {Mem: $u.mem} else {} end)
+             + (if .r == "false" then {Restartable: false} else {} end)]
        | sort_by(.Names[0])' >"$tmp"; then
     chmod 644 "$tmp"; mv -f "$tmp" "$out"; tmp=''
   else

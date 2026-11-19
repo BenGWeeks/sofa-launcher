@@ -11,6 +11,7 @@ import { CameraInputs } from './camera-inputs';
 import { ContainerStatusSource, NOT_CONFIGURED } from './containers-status';
 import { demoStatusReader, fillDemoHistory, withDemoDocker } from './containers-demo';
 import { ContainerHistory } from './containers-history';
+import { ContainerRestarter, type Restarter } from './containers-restart';
 import { verifyContainersView } from './containers-check';
 import { discoverBrowsers, resolveBrowser, browserTile, type BrowserDiscovery } from './browsers';
 import { profileDir, usesBrowserExtension } from './argv';
@@ -107,6 +108,8 @@ let cameraInputs: CameraInputs | null = null;
 let cameraOrigin: string | null = null;
 /** The Docker tile's status file ([containers]); null when not set up. */
 let containerSource: ContainerStatusSource | null = null;
+/** The optional restart service ([containers] restart_socket); null when not set up. */
+let containerRestarter: Restarter | null = null;
 /** What the launcher has seen of each container over the last day (the details panel's charts). */
 const containerHistory = new ContainerHistory();
 const containerHistoryFile = join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'sofa-launcher', 'containers-history.json');
@@ -435,14 +438,18 @@ function configureCameraInputs(): void {
 // ---- Docker containers view ------------------------------------------------
 function configureContainers(): void {
   const file = config.containersFile;
-  if (!file) { containerSource = null; return; }
+  if (!file) { containerSource = null; containerRestarter = null; return; }
   if (DEMO) {
+    // Screenshots only: pretend this account may restart, and that every restart works.
+    containerRestarter = flag('demo-containers-restart') ? { available: async () => true, restart: async () => ({ ok: true, message: 'Restarted' }) } : null;
     const mode = flag('demo-containers-error') ? 'error' : 'ok';
     containerSource = new ContainerStatusSource({ path: file, reader: demoStatusReader(mode) });
     if (mode === 'error') void containerSource.refresh(); // the last good read, before the file "goes missing"
     void containerSource.refresh().then((snap) => fillDemoHistory(containerHistory, snap.containers, Date.now()));
     return;
   }
+  const socket = config.containersRestartSocket;
+  containerRestarter = socket ? new ContainerRestarter(socket) : null;
   if (containerSource?.path === file) return;
   containerSource = new ContainerStatusSource({ path: file });
 }
@@ -1270,7 +1277,21 @@ function registerIpc(): void {
   });
   handle('launcher:camera-stills', () => cameraStills.stills);
   // Read-only: the view re-reads at most every 5 s (on open, `fresh` reads now).
-  handle('containers:snapshot', (_event, fresh) => containerSource?.refresh(fresh === true ? 0 : 5000) ?? NOT_CONFIGURED);
+  handle('containers:snapshot', async (_event, fresh) => {
+    if (!containerSource) return NOT_CONFIGURED;
+    const [snap, canRestart] = await Promise.all([containerSource.refresh(fresh === true ? 0 : 5000), containerRestarter?.available() ?? false]);
+    return { ...snap, canRestart };
+  });
+  // The one thing the view can change. Only a container the status file lists, and has not
+  // marked as protected; the restart service makes its own checks and has the last word.
+  handle('containers:restart', async (_event, name) => {
+    const target = typeof name === 'string' ? containerSource?.snapshot().containers.find((c) => c.name === name) : undefined;
+    if (!containerRestarter || !target) return { ok: false, message: 'Restarting isn’t set up for this container' };
+    if (!target.restartable) return { ok: false, message: `${target.name} is protected from restarts` };
+    const result = await containerRestarter.restart(target.name);
+    void containerSource?.refresh(0).then(() => pushApps()).catch(() => undefined);
+    return result;
+  });
   handle('containers:history', (_event, name) => (containerSource && typeof name === 'string' && name.length <= 128
     ? containerHistory.series(name, Date.now()) : null));
   handle('launcher:game-art', (_event, appId) => (typeof appId === 'string' ? gameArt(appId) : null));
