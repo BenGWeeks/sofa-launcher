@@ -21,6 +21,7 @@ describe('launchArgv', () => {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-session-crashed-bubble',
+      '--ozone-platform=x11',
     ]);
   });
 
@@ -35,6 +36,7 @@ describe('launchArgv', () => {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-session-crashed-bubble',
+      '--ozone-platform=x11',
     ]);
     expect(args.some((a) => a.startsWith('--app') || a === '--start-fullscreen' || a === '--kiosk')).toBe(false);
     expect(backKeyFor(edge)).toBe('alt+Left');
