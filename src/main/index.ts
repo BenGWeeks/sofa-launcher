@@ -703,7 +703,15 @@ async function showHome(): Promise<void> {
       await shown;
     }
     target.focus();
-    if (!DEMO) await wm.activate(xWindowId(target));
+    if (!DEMO) {
+      try { await wm.activate(xWindowId(target)); }
+      catch (error) {
+        // The home window is not an X11 window (a Wayland session), so the X server cannot be
+        // asked to activate it. If it has the focus already, Home is in front, which is all this
+        // step is for: carry on, so Menu, Help and Power on Home still work. Otherwise it failed.
+        if (!target.isFocused()) throw error;
+      }
+    }
   }, () => { coverLaunch.cancel(); if (panelOpen()) hidePanel(false); });
   await pip.home();
   void pushApps();
