@@ -58,7 +58,7 @@
     <h3>{title}</h3>
     <div class="options" style:--cols={cols}>
     {#each options as o, i (o.id)}
-      <button disabled={o.disabled} aria-pressed={o.selected} class="opt" class:f={i === focus} tabindex="-1" onclick={() => onchoose(o.id)}>
+      <button disabled={o.disabled} aria-pressed={o.selected} class="opt" class:f={i === focus} tabindex="-1" onpointermove={() => { if (!o.disabled && focus !== i) focus = i; }} onclick={() => onchoose(o.id)}>
         {#if o.remoteIcon}<RemoteIcon name={o.remoteIcon} />{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d={o.icon} /></svg>{/if}
         <span class="text">{o.label}{#if o.hint}<small>{o.hint}</small>{/if}</span>
       </button>

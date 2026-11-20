@@ -88,6 +88,12 @@
     void tick().then(() => document.querySelectorAll(selector)[index]?.scrollIntoView({block:'nearest',inline:'nearest'}));
   });
 
+  /** The mouse moved over a tile: it takes the highlight, exactly as the remote's arrows would give it. */
+  function hover(row: RowId, i: number) {
+    if (footerFocus === null && focusRow === row && focus === i) return;
+    footerFocus = null; focusRow = row; focus = i;
+  }
+
   function open(i: number, row: RowId = 'apps') {
     const a = rows.find(r => r.id === row)?.items[i];
     if (a && !launchCovered && !launchPending) {
@@ -241,7 +247,7 @@
     <section class="row {row.cls}" aria-label={row.label}>
       {#each row.items as app, i (app.id)}
         <!-- Only apps take the 1-9 numbers. -->
-        <div class="app-slot"><Tile {app} index={row.id === 'apps' ? i : 99} art={row.id === 'cameras' ? cameraStills[app.id] : gameArt[app.id]} focused={footerFocus === null && focusRow === row.id && i === focus} onclick={() => { footerFocus = null; focusRow = row.id; focus = i; open(i, row.id); }} /></div>
+        <div class="app-slot"><Tile {app} index={row.id === 'apps' ? i : 99} art={row.id === 'cameras' ? cameraStills[app.id] : gameArt[app.id]} focused={footerFocus === null && focusRow === row.id && i === focus} onhover={() => hover(row.id, i)} onclick={() => { footerFocus = null; focusRow = row.id; focus = i; open(i, row.id); }} /></div>
       {:else}
         <p class="empty">No apps yet. Add some to <code>~/.config/sofa-launcher/config.toml</code>.</p>
       {/each}
@@ -251,7 +257,7 @@
   <footer class="hints">
     <span><span class="k">1–9</span>Apps</span>
     {#each footerButtons as button, index}
-      <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
+      <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onpointermove={() => { if (footerFocus !== index) footerFocus = index; }} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
     {/each}
     <span class="brand">
       <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true">
