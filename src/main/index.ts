@@ -588,9 +588,26 @@ function createWindow(opts: { show: boolean; hash?: string }): BrowserWindow {
   return w;
 }
 
+/**
+ * The screen the home window is on (the primary one before it exists). On a PC with a monitor
+ * and a TV, the pill, the panel and the launch cover must appear where Home is, not on the
+ * primary screen.
+ */
+function homeScreen(): Electron.Rectangle {
+  const home = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay();
+  return home.bounds;
+}
+
+/** Keep the toast strip on the home window's screen (it is placed again whenever Home moves). */
+function placeToasts(): void {
+  if (DEMO || !toastWin || toastWin.isDestroyed()) return;
+  const { x, y, width, height } = homeScreen();
+  toastWin.setBounds({ x, y, width, height: Math.round(height / 4) });
+}
+
 /** A frameless, transparent, always-on-top window for the panel or the toasts. */
 function createOverlay(kind: 'panel' | 'toast'): BrowserWindow {
-  const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
+  const { x, y, width, height } = homeScreen();
   const bounds =
     kind === 'panel'
       ? { x, y, width, height }
@@ -645,7 +662,7 @@ function xWindowId(w: BrowserWindow): string {
 function setLaunchCover(above: boolean): void {
   send('launch-cover', above);
   if (!launchCoverWin || launchCoverWin.isDestroyed()) return;
-  if (above) launchCoverWin.showInactive();
+  if (above) { if (!launchCoverWin.isVisible()) launchCoverWin.setBounds(homeScreen()); launchCoverWin.showInactive(); }
   else launchCoverWin.hide();
 }
 
@@ -843,7 +860,7 @@ function resizePanel(keyboard: boolean): void {
   if (!panelWin || panelWin.isDestroyed()) return;
   // Keep the transparent overlay screen-sized without native fullscreen.
   // KWin's native-fullscreen transparent surfaces can lose their painted frame.
-  if (!DEMO) panelWin.setBounds(screen.getPrimaryDisplay().bounds);
+  if (!DEMO) panelWin.setBounds(homeScreen());
 }
 
 async function openKeyboard(): Promise<void> {
@@ -1627,6 +1644,8 @@ if (flag('setup-user') || flag('undo-user-setup')) {
     win.on('hide', syncCameraStills);
     if (!SCREENSHOT) {
       toastWin = createOverlay('toast');
+      win?.on('move', placeToasts);
+      win?.on('show', placeToasts);
       toastWin.on('show', syncCameraOverlays);
       toastWin.on('hide', syncCameraOverlays);
       toastWin.webContents.once('did-finish-load', () => {
