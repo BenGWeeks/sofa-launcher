@@ -22,6 +22,14 @@ export function usesBrowserExtension(app: ResolvedApp): boolean {
   return url.origin === 'https://www.youtube.com' && /^\/tv(?:\/|$)/.test(url.pathname);
 }
 
+/**
+ * The launcher finds, raises and sizes windows through X11. On a Wayland session a browser may
+ * choose native Wayland windows, which X11 tools cannot see: the app then looks as if it never
+ * opened and cannot be brought back. This keeps the browser's windows on X11 (XWayland there);
+ * on an X11 session it changes nothing.
+ */
+export const X11_WINDOWS = '--ozone-platform=x11';
+
 /** Build [file, args] for spawn(). Arguments are an array; no shell is involved. */
 export function launchArgv(app: ResolvedApp, opts: { dataDir: string; home?: string; browserExtensionPath?: string; browser?: InstalledBrowser | null }): [string, string[]] {
   if (app.type === 'web' && !opts.browser) throw new Error(NO_BROWSER);
@@ -36,6 +44,7 @@ export function launchArgv(app: ResolvedApp, opts: { dataDir: string; home?: str
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-session-crashed-bubble',
+      X11_WINDOWS,
     ];
     if (app.userAgent) args.push(`--user-agent=${app.userAgent}`);
     if (app.url) args.push(app.url);
@@ -51,6 +60,7 @@ export function launchArgv(app: ResolvedApp, opts: { dataDir: string; home?: str
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-session-crashed-bubble',
+      X11_WINDOWS,
     ];
     if (usesBrowserExtension(app) && opts.browserExtensionPath) {
       // Google Chrome 137+ ignores --load-extension unless this switch is turned back on; later
