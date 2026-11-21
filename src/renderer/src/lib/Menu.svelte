@@ -28,8 +28,12 @@
   const cols = $derived(columns ?? (options.length > 6 ? 2 : 1));
   let focus = $state(untrack(() => initialFocus)); // the starting highlight only; keys move it from there
   let menu: HTMLDivElement;
+  // Set when the mouse gave the highlight: the option is under the pointer already, and scrolling
+  // it into view would slide it away from the pointer.
+  let byPointer = false;
   $effect(() => {
     focus;
+    if (byPointer) { byPointer = false; return; }
     queueMicrotask(() => menu?.querySelector('.opt.f')?.scrollIntoView({ block: 'nearest' }));
   });
 
@@ -58,7 +62,7 @@
     <h3>{title}</h3>
     <div class="options" style:--cols={cols}>
     {#each options as o, i (o.id)}
-      <button disabled={o.disabled} aria-pressed={o.selected} class="opt" class:f={i === focus} tabindex="-1" onclick={() => onchoose(o.id)}>
+      <button disabled={o.disabled} aria-pressed={o.selected} class="opt" class:f={i === focus} tabindex="-1" onpointermove={() => { if (!o.disabled && focus !== i) { byPointer = true; focus = i; } }} onclick={() => onchoose(o.id)}>
         {#if o.remoteIcon}<RemoteIcon name={o.remoteIcon} />{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d={o.icon} /></svg>{/if}
         <span class="text">{o.label}{#if o.hint}<small>{o.hint}</small>{/if}</span>
       </button>

@@ -17,8 +17,10 @@
   import edgeLogo from '../assets/microsoft-edge.svg';
   import dockerLogo from '../assets/containers/docker.svg';
 
-  let { app, index = 99, focused = false, onclick, bare = false, art }: {
+  let { app, index = 99, focused = false, onclick, onhover, bare = false, art }: {
     app: TileState; index?: number; focused?: boolean; onclick?: () => void;
+    /** The mouse moved over the tile (a real movement, not the page scrolling under a still pointer). */
+    onhover?: () => void;
     /** Artwork only (no number, status dot, label or button), for use inside another control. */
     bare?: boolean;
     /** A game's artwork or a camera's latest still (data URL), filling the tile. */
@@ -40,7 +42,7 @@
   const wordmark = $derived(app.brand ? wordmarks[app.brand] : undefined);
 </script>
 
-<svelte:element this={bare ? 'span' : 'button'} class="slot" class:bare class:focused class:missing={!app.installed} {onclick} tabindex={bare ? undefined : -1} aria-hidden={bare ? 'true' : undefined}>
+<svelte:element this={bare ? 'span' : 'button'} class="slot" class:bare class:focused class:missing={!app.installed} {onclick} onpointermove={bare ? undefined : onhover} tabindex={bare ? undefined : -1} aria-hidden={bare ? 'true' : undefined}>
   <div class="tile brand-{app.brand ?? 'generic'}" style:--hue={app.brand === 'game' ? hue : undefined}>
     {#if !bare}
       {#if index < 9}<span class="n">{index + 1}</span>{/if}
