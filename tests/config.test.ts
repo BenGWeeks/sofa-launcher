@@ -160,3 +160,14 @@ describe('[[apps]] art', () => {
     expect(() => app(extra)).toThrow(ConfigError);
   });
 });
+
+describe('a catalogue entry used as another kind of app', () => {
+  it('keeps the name and look, not how the other kind is started or checked', () => {
+    const web = parseConfig('[[apps]]\nid = "jellyfin"\ncatalogue = "jellyfin"\ntype = "web"\nurl = "https://jellyfin.example.com"').apps[0]!;
+    expect(web).toMatchObject({ name: 'Jellyfin', type: 'web', url: 'https://jellyfin.example.com', brand: 'jellyfin', wmClass: 'sofa-jellyfin' });
+    expect(web.flatpak).toBeUndefined();
+    expect(web.command).toBeUndefined();
+    const desktop = parseConfig('[[apps]]\nid = "jellyfin"\ncatalogue = "jellyfin"').apps[0]!;
+    expect(desktop).toMatchObject({ type: 'desktop', flatpak: 'org.jellyfin.JellyfinDesktop', wmClass: 'jellyfin-desktop' });
+  });
+});

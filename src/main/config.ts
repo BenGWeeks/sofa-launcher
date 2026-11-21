@@ -209,22 +209,26 @@ function resolveApp(a: RawApp): ResolvedApp {
   if (a.catalogue && !base) throw new ConfigError(`app "${a.id}": unknown catalogue entry "${a.catalogue}"`);
   const type = a.type ?? base?.type;
   if (!type) throw new ConfigError(`app "${a.id}": needs a type ("web" or "desktop") or a catalogue entry`);
+  // A catalogue entry used as another kind of app (the Jellyfin desktop tile pointed at the
+  // server's web page, say) keeps its name and look only: how the catalogue's kind is started,
+  // found and checked for being installed does not apply to the other kind.
+  const how = base && base.type === type ? base : undefined;
   const merged: ResolvedApp = {
     id: a.id,
     name: a.name ?? base?.name ?? a.id,
     type,
-    url: a.url ?? base?.url,
+    url: a.url ?? how?.url,
     browser: a.browser,
-    userAgent: a.userAgent ?? base?.userAgent,
-    remoteNavigation: a.remoteNavigation ?? base?.remoteNavigation,
-    searchUrl: a.searchUrl ?? base?.search,
-    command: a.command ?? base?.command,
-    flatpak: a.flatpak ?? base?.flatpak,
-    keepOnClose: a.keepOnClose ?? base?.keepOnClose,
-    wmClass: a.wmClass ?? base?.wmClass ?? `sofa-${a.id}`,
+    userAgent: a.userAgent ?? how?.userAgent,
+    remoteNavigation: a.remoteNavigation ?? how?.remoteNavigation,
+    searchUrl: a.searchUrl ?? how?.search,
+    command: a.command ?? how?.command,
+    flatpak: a.flatpak ?? how?.flatpak,
+    keepOnClose: a.keepOnClose ?? how?.keepOnClose,
+    wmClass: a.wmClass ?? how?.wmClass ?? `sofa-${a.id}`,
     brand: base?.brand,
     image: base?.image,
-    hotkeys: { ...base?.hotkeys, ...a.hotkeys },
+    hotkeys: { ...how?.hotkeys, ...a.hotkeys },
   };
   if ((a.group ?? base?.group) === 'games') merged.group = 'games';
   if (a.art) merged.art = a.art;
