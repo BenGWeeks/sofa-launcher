@@ -710,6 +710,7 @@ async function showHome(): Promise<void> {
         // asked to activate it. If it has the focus already, Home is in front, which is all this
         // step is for: carry on, so Menu, Help and Power on Home still work. Otherwise it failed.
         if (!target.isFocused()) throw error;
+        console.warn(`Home: the X server could not activate the home window, but it has the focus: carrying on (${String(error)})`);
       }
     }
   }, () => { coverLaunch.cancel(); if (panelOpen()) hidePanel(false); });
