@@ -662,7 +662,15 @@ function xWindowId(w: BrowserWindow): string {
 function setLaunchCover(above: boolean): void {
   send('launch-cover', above);
   if (!launchCoverWin || launchCoverWin.isDestroyed()) return;
-  if (above) { if (!launchCoverWin.isVisible()) launchCoverWin.setBounds(homeScreen()); launchCoverWin.showInactive(); }
+  if (above) {
+    if (!launchCoverWin.isVisible()) {
+      // The cover's minimum size starts as the primary screen's; on a smaller screen it would not fit.
+      const bounds = homeScreen();
+      launchCoverWin.setMinimumSize(bounds.width, bounds.height);
+      launchCoverWin.setBounds(bounds);
+    }
+    launchCoverWin.showInactive();
+  }
   else launchCoverWin.hide();
 }
 
@@ -1646,6 +1654,10 @@ if (flag('setup-user') || flag('undo-user-setup')) {
       toastWin = createOverlay('toast');
       win?.on('move', placeToasts);
       win?.on('show', placeToasts);
+      // A screen plugged in, unplugged or resized can move Home without the window itself moving.
+      screen.on('display-added', placeToasts);
+      screen.on('display-removed', placeToasts);
+      screen.on('display-metrics-changed', placeToasts);
       toastWin.on('show', syncCameraOverlays);
       toastWin.on('hide', syncCameraOverlays);
       toastWin.webContents.once('did-finish-load', () => {
