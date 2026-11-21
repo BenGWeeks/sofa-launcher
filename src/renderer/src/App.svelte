@@ -84,18 +84,21 @@
   $effect(() => {
     const selector = `.${rows[rowIndex]?.cls ?? 'app-row'} > .app-slot`;
     const index = focus;
-    if (footerFocus !== null) return;
-    if (byPointer) { byPointer = false; return; }
+    if (footerFocus !== null) { pointerTile = null; return; }
+    // Still the tile the mouse highlighted (an app update can re-run this): leave it where it is.
+    if (pointerTile === `${rows[rowIndex]?.id}:${index}`) return;
+    pointerTile = null;
     void tick().then(() => document.querySelectorAll(selector)[index]?.scrollIntoView({block:'nearest',inline:'nearest'}));
   });
 
-  // Set when the mouse gave the highlight: the tile is under the pointer already, and scrolling it
-  // into view would slide it away from the pointer (and the next small movement would pick its neighbour).
-  let byPointer = false;
+  // The tile the mouse gave the highlight to ("row:index"), until the highlight moves on. It is
+  // under the pointer already: scrolling it into view would slide it away from the pointer (and the
+  // next small movement would pick its neighbour).
+  let pointerTile: string | null = null;
   /** The mouse moved over a tile: it takes the highlight, exactly as the remote's arrows would give it. */
   function hover(row: RowId, i: number) {
     if (footerFocus === null && focusRow === row && focus === i) return;
-    byPointer = true; footerFocus = null; focusRow = row; focus = i;
+    pointerTile = `${row}:${i}`; footerFocus = null; focusRow = row; focus = i;
   }
 
   function open(i: number, row: RowId = 'apps') {
