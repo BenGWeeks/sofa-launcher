@@ -129,6 +129,11 @@ While Sofa is running, the mouse pointer hides everywhere on the display after
 three seconds without movement, over apps and the desktop as well as Home, and
 returns as soon as the mouse moves. It comes back for good when Sofa quits.
 
+With a mouse, push the pointer against the bottom edge of the screen while an app
+is in front and the panel slides up, as it does for Menu. Click a tile or a
+button to use it, or click anywhere above the panel to go back to the app. The
+edge does nothing on the home screen, on the bare desktop or in remote-pointer mode.
+
 Closing or quitting Sofa closes apps opened or brought forward through Sofa in
 that session, including Nod.ie. Apps never opened through Sofa remain untouched.
 Set `keepOnClose = true` on an app to keep it running explicitly.

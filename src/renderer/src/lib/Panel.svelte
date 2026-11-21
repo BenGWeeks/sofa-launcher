@@ -129,6 +129,11 @@
   </div>
 {/if}
 
+{#if !keyboard && !(pip.active && selectingScreen)}
+  <!-- For a mouse: the panel can be opened from the bottom edge, so a click above it goes back. -->
+  <button class="backdrop" tabindex="-1" aria-label={`Return to ${current?.name ?? 'the app'}`} onclick={() => void window.sofa.panelDismiss()}></button>
+{/if}
+
 <div class="panel" class:screen-selecting={pip.active && selectingScreen && !keyboard} class:demo class:keyboard-open={keyboard} role="dialog" aria-label="Launcher panel">
   {#if keyboard}
     <Keyboard />
@@ -173,6 +178,9 @@
     radial-gradient(60% 80% at 70% 40%, rgba(255, 170, 80, 0.35), transparent 60%),
     radial-gradient(50% 70% at 20% 70%, rgba(30, 90, 160, 0.45), transparent 60%),
     linear-gradient(180deg, #1a1410, #2a1c14 50%, #0e0a08); }
+
+  /* Everything above the panel: invisible, and only there to take a mouse click. */
+  .backdrop { all: unset; position: fixed; inset: 0 0 35% 0; }
 
   /* A little over a third of the screen: room for tiles big enough to read from the sofa. */
   .panel { position: fixed; left: 0; right: 0; bottom: 0; height: 35%; padding: 1.2rem 4rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem;

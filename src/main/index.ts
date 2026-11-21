@@ -24,6 +24,7 @@ import { appsLeftForHome } from './home-pause';
 import { talkToNodie } from './nodie-talk';
 import { coverToastGate, launchCover, launchCoverTimeout, requiresFullscreen } from './launch-cover';
 import { restoreFullscreen } from './restore-fullscreen';
+import { EdgeReveal } from './edge-reveal';
 import { IdlePointer } from './idle-pointer';
 import { prepareLaunchCover } from './launch-cover-window';
 import { parseOpenCommand, searchUrl, validateOpenCommand, type OpenCommand, type ParsedCommand } from './command';
@@ -185,6 +186,15 @@ const pointer = new RemotePointer({
   command: (args) => new Promise<void>((resolve, reject) => {
     execFile('xdotool', args, { timeout: 2000 }, (error) => error ? reject(error) : resolve());
   }),
+});
+/** A mouse pushed against the bottom of the screen opens the panel, as Menu does on the remote. */
+const edgeReveal = new EdgeReveal({
+  cursor: () => screen.getCursorScreenPoint(),
+  // The screen the panel opens on: the one Home is on.
+  screen: () => homeScreen(),
+  // Not in remote-pointer mode: there the arrows move the mouse, and Menu is a button away.
+  enabled: () => !launcherInFront() && !panelOpen() && !pointer.active && !windowHandoff.active,
+  reveal: () => void openPanelFromEdge().catch(() => undefined),
 });
 const audio = new AppAudio();
 const volumeKeys: string[] = [];
@@ -830,6 +840,16 @@ async function openPanel(): Promise<void> {
   panelWin.focus();
   if (!DEMO) await wm.activate(xWindowId(panelWin)).catch(() => undefined);
   void pushApps();
+}
+
+/**
+ * The mouse reached the bottom edge. Unlike Menu, this does nothing unless one of our apps is
+ * in front: on a bare desktop the bottom edge belongs to the taskbar, not to Sofa.
+ */
+async function openPanelFromEdge(): Promise<void> {
+  const current = await apps.appForWindow(await wm.activeWindow());
+  if (!current || launcherInFront() || panelOpen()) return;
+  await openPanel();
 }
 
 function hidePanel(reactivate: boolean): void | Promise<void> {
@@ -1725,6 +1745,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
     if (!DEMO) void startContainerHistory();
     // Not in dev: a pointer that vanishes is unwelcome on a desk.
     if (!DEMO && !DEV) idlePointer.start();
+    if (!DEMO) edgeReveal.start();
   });
   let cleanupFinished = false;
   let cleanupStarted = false;
@@ -1747,6 +1768,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
   });
   app.on('will-quit', () => {
     idlePointer.stop();
+    edgeReveal.stop();
     if (historyTimer) clearInterval(historyTimer);
     if (!DEMO) containerHistory.saveSync(containerHistoryFile); // demo history is made up: never keep it
     cameraInputs?.dispose();
