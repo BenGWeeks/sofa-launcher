@@ -245,3 +245,27 @@ exit 0
     expect(run('update web\n', 'restart').calls).toBe('');
   });
 });
+
+describe('update service client', () => {
+  it('asks for an update, and reports what happened', async () => {
+    const s = await service((line) => (line.includes('same') ? 'ok already up to date\n' : 'ok\n'));
+    const u = new ContainerRestarter(s.path, 1000, 'update');
+    expect(await u.restart('sonarr')).toEqual({ ok: true, message: 'Updated' });
+    expect(await u.restart('same')).toEqual({ ok: true, message: 'Already up to date' });
+    expect(s.seen).toEqual(['update sonarr\n', 'update same\n']);
+  });
+
+  it('words its failures as an update', async () => {
+    const s = await service(() => 'error the new image could not be downloaded\n');
+    const u = new ContainerRestarter(s.path, 1000, 'update');
+    expect(await u.restart('web')).toEqual({ ok: false, message: 'the new image could not be downloaded' });
+    expect(await new ContainerRestarter(join(temp(), 'none.sock'), 1000, 'update').restart('web'))
+      .toEqual({ ok: false, message: 'The update service is not running' });
+  });
+
+  it('reads Updatable only when the file says true', () => {
+    const entry = (Updatable: unknown) => parseEntry({ Id: 'a'.repeat(64), Names: ['/web'], State: 'running', Status: 'Up', Updatable })!.updatable;
+    expect(entry(true)).toBe(true);
+    for (const v of [undefined, false, 'true', 1]) expect(entry(v)).toBe(false);
+  });
+});

@@ -40,48 +40,66 @@
   $effect(() => { void detail?.name; void loadHistory(); });
   let polls = 0;
 
-  // ---- restart (only when this account may: the snapshot says so) ------------
-  /** Which panel button has the highlight, and whether we are asking "are you sure?". */
-  let choice = $state<'close' | 'restart'>('close');
-  let confirming = $state(false);
-  /** The container being restarted (its name), while waiting for the answer. */
-  let restarting = $state<string | null>(null);
+  // ---- restart and update (only when this account may: the snapshot says so) -----
+  type Action = 'restart' | 'update';
+  /** Which panel button has the highlight, and which action we are asking "are you sure?" about. */
+  let choice = $state<'close' | Action>('close');
+  let confirming = $state<Action | null>(null);
+  /** The container being restarted or updated, while waiting for the answer. */
+  let working = $state<{ name: string; verb: Action } | null>(null);
   /** When the confirmation appeared: a double-click must not also be the answer to it. */
   let askedAt = 0;
-  let outcome = $state<{ ok: boolean; message: string } | null>(null);
+  let outcome = $state<{ ok: boolean; message: string; verb: Action } | null>(null);
   /** Only what is running: this never starts something that was stopped. */
   const canRestart = $derived(!!snap?.canRestart && !!detail?.restartable && detail.state === 'running');
+  /** Only an opted-in (sofa.update) running container with a newer image, for an account the update service lets in. */
+  const canUpdate = $derived(!!snap?.canUpdate && !!detail?.updatable && detail.state === 'running' && detail.update?.available === true);
+  const buttons = $derived<('close' | Action)[]>(['close', ...(canRestart ? ['restart' as const] : []), ...(canUpdate ? ['update' as const] : [])]);
 
   function openDetail(c: ContainerInfo | null) {
-    detail = c; choice = 'close'; confirming = false; outcome = null;
+    detail = c; choice = 'close'; confirming = null; outcome = null;
   }
 
-  async function restart() {
+  async function act(verb: Action) {
     const target = detail;
-    if (!target || restarting) return;
-    restarting = target.name; confirming = false; outcome = null;
-    const result = await window.sofaContainers.restart(target.name).catch(() => ({ ok: false, message: 'The launcher could not ask for the restart' }));
-    restarting = null; choice = 'close';
-    if (detail?.name === target.name) outcome = result;
+    if (!target || working) return;
+    working = { name: target.name, verb }; confirming = null; outcome = null;
+    const ask = verb === 'update' ? window.sofaContainers.update : window.sofaContainers.restart;
+    const result = await ask(target.name).catch(() => ({ ok: false, message: `The launcher could not ask for the ${verb}` }));
+    working = null; choice = 'close';
+    if (detail?.name === target.name) outcome = { ...result, verb };
     void refresh(true);
   }
 
   /** OK and the arrows inside the details panel. */
   function panelKey(key: string) {
-    if (restarting) return;
-    if (!canRestart) { if (key === 'Enter') openDetail(null); return; }
-    if (key === 'ArrowLeft' || key === 'ArrowRight') { choice = choice === 'close' ? 'restart' : 'close'; return; }
+    if (working) return;
+    if (buttons.length < 2) { if (key === 'Enter') openDetail(null); return; }
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      const row: ('close' | Action)[] = confirming ? ['close', confirming] : buttons;
+      const at = Math.max(0, row.indexOf(choice));
+      choice = row[(at + (key === 'ArrowRight' ? 1 : -1) + row.length) % row.length]!;
+      return;
+    }
     if (key !== 'Enter') return;
-    if (choice === 'close') { if (confirming) confirming = false; else openDetail(null); }
-    else if (confirming) void restart();
-    // Asking moves the highlight to Cancel: a second OK by reflex must not restart anything.
-    else { confirming = true; choice = 'close'; outcome = null; askedAt = Date.now(); }
+    if (choice === 'close') { if (confirming) confirming = null; else openDetail(null); }
+    else if (confirming === choice) void act(choice);
+    // Asking moves the highlight to Cancel: a second OK by reflex must not restart or update anything.
+    else { confirming = choice; choice = 'close'; outcome = null; askedAt = Date.now(); }
   }
 
   /** A mouse click on a panel button (the remote uses the keys). */
-  function click(which: 'close' | 'restart') {
-    if (confirming && which === 'restart' && Date.now() - askedAt < 700) return;
+  function click(which: 'close' | Action) {
+    if (confirming && which !== 'close' && Date.now() - askedAt < 700) return;
     choice = which; panelKey('Enter');
+  }
+
+  /** What an answer says on screen: "web was restarted", "web: already up to date". */
+  function said(o: { ok: boolean; message: string; verb: Action }, name: string): string {
+    if (!o.ok) return o.message;
+    if (o.message === 'Restarted') return `${name} was restarted`;
+    if (o.message === 'Updated') return `${name} was updated`;
+    return `${name}: ${o.message[0]!.toLowerCase()}${o.message.slice(1)}`;
   }
 
   const STATUS_WORDS: Record<ContainerColour, string> = { green: 'Running', amber: 'Not ready', red: 'Problem', grey: 'Stopped' };
@@ -138,6 +156,8 @@
   const counts = $derived(countParts(snap?.containers ?? []));
   /** A version for the one-line Update row: long tags are cut, the panel cannot scroll. */
   const short = (v: string) => (v.length > 22 ? `${v.slice(0, 21)}…` : v);
+  /** "valkey/valkey:9" → "9"; no tag means "latest". */
+  const tagOf = (image: string) => { const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(i + 1) : 'latest'; };
   const updates = $derived((snap?.containers ?? []).filter((c) => c.update?.available).length);
   /** Hide the heading when everything is in one unnamed group (no compose data published). */
   const headings = $derived(!(groups.length === 1 && groups[0]!.name === OTHER_GROUP));
@@ -188,7 +208,7 @@
 
   /** Back: one step out (confirmation, then details, then the view). */
   function back() {
-    if (restarting) { /* wait for the answer */ } else if (confirming) confirming = false; else if (detail) openDetail(null); else onclose();
+    if (working) { /* wait for the answer */ } else if (confirming) confirming = null; else if (detail) openDetail(null); else onclose();
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -280,7 +300,7 @@
                 {#each group.containers as c, i (c.id)}
                   {@const label = headings ? shortName(c.name, group.name) : c.name}
                   <button class="card {c.colour}" class:focused={offset + i === focus} tabindex="-1"
-                    onclick={() => { if (!restarting) { focus = offset + i; openDetail(c); } }}>
+                    onclick={() => { if (!working) { focus = offset + i; openDetail(c); } }}>
                     {@render icon(c, label)}
                     {#if c.update?.available}<span class="newer corner" title="Update available">{@render arrow()}<span class="sr">Update available</span></span>{/if}
                     <span class="text">
@@ -351,23 +371,35 @@
           {/each}
         </section>
       {/if}
-      {#if canRestart || restarting || outcome}
+      {#if buttons.length > 1 || working || outcome}
         <div class="actions">
-          {#if restarting}
-            <p class="note" role="status">Restarting {restarting}…</p>
+          {#if working}
+            <p class="note" role="status">{working.verb === 'update' ? `Updating ${working.name}… downloading the newer image can take a few minutes` : `Restarting ${working.name}…`}</p>
           {:else}
-            {#if outcome}<p class="note {outcome.ok ? 'green' : 'red'}" role="status"><StatusGlyph colour={outcome.ok ? 'green' : 'red'} />{outcome.ok ? `${detail.name} was restarted` : outcome.message}</p>{/if}
-            {#if confirming}<p class="note" role="alert">Restart {detail.name}? It will be unavailable for a moment.</p>{/if}
-            {#if canRestart}
+            {#if outcome}<p class="note {outcome.ok ? 'green' : 'red'}" role="status"><StatusGlyph colour={outcome.ok ? 'green' : 'red'} />{said(outcome, detail.name)}</p>{/if}
+            {#if confirming === 'restart'}<p class="note" role="alert">Restart {detail.name}? It will be unavailable for a moment.</p>
+            {:else if confirming === 'update' && detail.update}
+              {@const u = detail.update}
+              <p class="note" role="alert">
+                <span>Update {detail.name} to the newer image? It restarts with it: unavailable for a moment, and a faulty image could stop it working.
+                  <small class="mono-text">{detail.image}: {u.kind === 'floating' ? `${short(u.current)} → ${short(u.latest)} (tag ${tagOf(detail.image)})` : `${short(u.current) || '?'} → ${short(u.latest)}`}</small></span>
+              </p>
+            {/if}
+            {#if buttons.length > 1}
               <div class="buttons">
                 <button class:focused={choice === 'close'} tabindex="-1" onclick={() => click('close')}>{confirming ? 'Cancel' : 'Close'}</button>
-                <button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => click('restart')}>{confirming ? 'Restart now' : 'Restart'}</button>
+                {#if confirming}
+                  <button class="go" class:focused={choice === confirming} tabindex="-1" onclick={() => click(confirming!)}>{confirming === 'update' ? 'Update now' : 'Restart now'}</button>
+                {:else}
+                  {#if canRestart}<button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => click('restart')}>Restart</button>{/if}
+                  {#if canUpdate}<button class="go" class:focused={choice === 'update'} tabindex="-1" onclick={() => click('update')}>Update</button>{/if}
+                {/if}
               </div>
             {/if}
           {/if}
         </div>
       {/if}
-      {#if canRestart}
+      {#if buttons.length > 1}
         <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</p>
       {:else}
         <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>

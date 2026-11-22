@@ -72,5 +72,6 @@ const containers: ContainersApi = {
   onShow: (cb) => subscribe<void>('containers:show', () => cb()),
   history: (name) => ipcRenderer.invoke('containers:history', name),
   restart: (name) => ipcRenderer.invoke('containers:restart', name),
+  update: (name) => ipcRenderer.invoke('containers:update', name),
 };
 contextBridge.exposeInMainWorld('sofaContainers', containers);

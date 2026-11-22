@@ -7,7 +7,7 @@ import { HISTORY_BUCKETS, HISTORY_BUCKET_MS, parseEntry, type ContainerInfo } fr
 
 const T0 = 1_800_000_000_000 - (1_800_000_000_000 % HISTORY_BUCKET_MS);
 const c = (name: string, colour: ContainerInfo['colour'], cpu: number | null = null, mem: number | null = null): ContainerInfo =>
-  ({ id: 'a'.repeat(12), name, image: 'x:1', state: 'running', status: '', project: '', service: '', colour, word: '', line: '', description: '', cpu, mem, restartable: true, update: null });
+  ({ id: 'a'.repeat(12), name, image: 'x:1', state: 'running', status: '', project: '', service: '', colour, word: '', line: '', description: '', cpu, mem, restartable: true, updatable: false, update: null });
 
 describe('status file: description and usage', () => {
   const entry = (over: Record<string, unknown>) => parseEntry({ Id: 'a'.repeat(64), Names: ['/web'], State: 'running', Status: 'Up 1 hour', ...over });
