@@ -1390,8 +1390,11 @@ function registerIpc(): void {
   // The About screen's link. The address is fixed here: the page cannot choose what opens.
   handle('launcher:openProject', async () => {
     if (DEMO) return;
-    try { await shell.openExternal(PROJECT_URL); }
-    catch { toast('Couldn’t open the browser'); }
+    try {
+      await shell.openExternal(PROJECT_URL);
+      // The browser opens behind full-screen Home: step aside, as for an app (Home brings Sofa back).
+      hideLauncher();
+    } catch { toast('Couldn’t open the browser'); }
   });
   handle('launcher:about', (e): AboutInfo => {
     let sandboxed = false;
@@ -1402,7 +1405,8 @@ function registerIpc(): void {
     }
     return { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
       // Screenshots must not show whoever took them: demo mode names the usual place.
-      configPath: DEMO ? '~/.config/sofa-launcher/config.toml' : configPath, sandboxed };
+      configPath: DEMO ? '~/.config/sofa-launcher/config.toml' : configPath, sandboxed,
+      noSandboxSwitch: app.commandLine.hasSwitch('no-sandbox') };
   });
   handle('launcher:buttonTest', (_e, active) => setButtonTest(active === true));
   handle('launcher:guideClosed', () => {
