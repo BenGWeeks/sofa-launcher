@@ -377,7 +377,8 @@ The file is a JSON array of
 `{"Id", "Names", "Image", "State", "Status", "Health": {"Status"}, "Project", "Service"}`
 (the Docker Engine API's names; `Project` and `Service` are the compose labels,
 empty when not set), plus three optional fields: `Description` (a sentence),
-`Cpu` (percent of one core) and `Mem` (bytes in use).
+`Cpu` (percent of one core) and `Mem` (bytes in use). An `Update` object (`{Available, Current, Latest, Kind, Checked}`)
+is passed on from an update checker's JSON file when `SOFA_UPDATES_FILE` points at one.
 [`docs/examples/container-status.sh`](docs/examples/container-status.sh) is a
 writer that produces all of it. It is treated as untrusted: at most 2 MB and 500 entries,
 every field validated and length-capped, unknown fields ignored. If a read fails
