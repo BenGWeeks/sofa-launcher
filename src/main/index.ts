@@ -551,11 +551,13 @@ function appIcon(): Electron.NativeImage | undefined {
   return image.isEmpty() ? undefined : image;
 }
 
-function createWindow(opts: { show: boolean; hash?: string }): BrowserWindow {
+/** `on`: the screen area to open on (centred there, then full screen on that screen). */
+function createWindow(opts: { show: boolean; hash?: string; on?: Electron.Rectangle }): BrowserWindow {
+  const size = { width: Math.min(1280, opts.on?.width ?? 1280), height: Math.min(720, opts.on?.height ?? 720) };
   const w = new BrowserWindow({
     icon: appIcon(),
-    width: 1280,
-    height: 720,
+    ...size,
+    ...(opts.on ? { x: opts.on.x + Math.round((opts.on.width - size.width) / 2), y: opts.on.y + Math.round((opts.on.height - size.height) / 2) } : {}),
     show: false,
     fullscreen: !DEV && !SELF_CHECK,
     frame: DEV,
@@ -1761,7 +1763,10 @@ if (flag('setup-user') || flag('undo-user-setup')) {
     await loadConfig();
     if (!DEMO) await mediaKeys.prepare();
     registerIpc();
-    win = createWindow({ show: true, hash: demoHash() });
+    // Open straight on the chosen screen: created elsewhere and moved, Home would flash on the
+    // primary screen first. placeHome below still corrects anything the window manager changes.
+    const startOn = DEMO ? undefined : pickDisplay(config.ui.screen, await namedDisplays(), screen.getPrimaryDisplay()).workArea;
+    win = createWindow({ show: true, hash: demoHash(), on: startOn });
     win.on('show', syncCameraOverlays);
     win.on('hide', syncCameraOverlays);
     win.on('show', syncCameraStills);
