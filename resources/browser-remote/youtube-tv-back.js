@@ -11,14 +11,46 @@
     document.title = `${marker} ${title}`;
     setTimeout(() => { if (document.title.startsWith(marker)) document.title = title; }, 1500);
   };
-  // Back while a video plays. Sofa sends Escape for Back, and YouTube's TV app (which Sofa
-  // presents as a Tizen TV) takes Escape in its player as "show the controls", so Back never
-  // left a video. The player has its own address (#/watch?v=…): step back in YouTube's own
-  // history instead, to the page the video was opened from. Elsewhere Escape is untouched.
+  // Back in the player. Sofa sends Escape for Back. In its player YouTube's TV app takes Escape
+  // as "show the controls", so Back never left a video; the player has no address of its own
+  // (it stays #/), and a Backspace made by the page is ignored. Its Back key there is a real
+  // Backspace (elsewhere Escape is right: at the side menu only Escape asks to close, which Sofa
+  // turns into its home screen). So while the player fills the window, keep the Escape from
+  // YouTube and ask Sofa, in the title, to press Backspace instead.
+  const backspaceMarker = '[sofa:backspace]';
+  const playerShown = () => {
+    const v = document.querySelector('video');
+    if (!v || v.readyState < 2) return false;
+    const r = v.getBoundingClientRect();
+    return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.6 && getComputedStyle(v).visibility !== 'hidden';
+  };
+  let clear = 0;
+  const plain = () => document.title.replace(`${backspaceMarker} `, '');
+  const ask = () => {
+    clearTimeout(clear);
+    const title = plain();
+    document.title = `${backspaceMarker} ${title}`;
+    clear = setTimeout(() => { if (document.title.startsWith(backspaceMarker)) document.title = title; }, 1500);
+  };
+  // With its controls hidden, the player takes the first Back as "show the controls" and only the
+  // next one leaves. So one Back may need two Backspaces: after Sofa's first, if the player is
+  // still there, ask once more (once per Back, so this can never repeat by itself).
+  let askedAt = 0;
   window.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape' || !e.isTrusted || !location.hash.startsWith('#/watch')) return;
+    if (e.key === 'Backspace' && e.isTrusted && askedAt) {
+      // Sofa answered: take the request down at once, so a second one is read as new.
+      clearTimeout(clear);
+      document.title = plain();
+      const at = askedAt;
+      askedAt = 0;
+      if (Date.now() - at < 3000) setTimeout(() => { if (playerShown()) ask(); }, 400);
+      return;
+    }
+    if (e.key !== 'Escape' || !e.isTrusted || !playerShown()) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (!e.repeat) history.back();
+    if (e.repeat || document.title.startsWith(backspaceMarker)) return;
+    askedAt = Date.now();
+    ask();
   }, true);
 })();
