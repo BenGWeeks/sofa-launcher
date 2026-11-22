@@ -11,3 +11,4 @@ spikes/*/package-lock.json
 
 # Local test captures that may show the machine name or real services
 docs/screenshots/launch-cover-*.png
+__pycache__/
