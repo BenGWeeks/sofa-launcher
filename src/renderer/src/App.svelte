@@ -12,7 +12,7 @@
   import PipMenu from './lib/PipMenu.svelte';
   import ContainersView from './lib/ContainersView.svelte';
   import { createClock } from './lib/clock.svelte';
-  import { BACK_KEYS, moveFocus, moveRowFocus, moveWrappedFocus } from './lib/nav';
+  import { BACK_KEYS, moveFocus, moveRowFocus, moveWrappedFocus, realMove } from './lib/nav';
   import { keepOrder, orderCameras } from './lib/camera-order';
 
   /** `demo` (from the URL hash) opens a screen with fake data for the docs screenshots. */
@@ -270,7 +270,7 @@
   <footer class="hints">
     <span><span class="k">1–9</span>Apps</span>
     {#each footerButtons as button, index}
-      <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onpointermove={() => { if (footerFocus !== index) footerFocus = index; }} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
+      <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onpointermove={(e) => { if (realMove(e) && footerFocus !== index) footerFocus = index; }} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
     {/each}
     <!-- For a mouse: the brand opens About (the remote reaches it through Settings). -->
     <button class="brand" tabindex="-1" aria-label="About Sofa Launcher" onclick={() => (screen = 'about')}>

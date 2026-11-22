@@ -3,7 +3,7 @@
   import RemoteIcon from './RemoteIcon.svelte';
   import type { RemoteIconId } from '@shared/buttons';
   import { untrack } from 'svelte';
-  import { BACK_KEYS, moveFocus } from './nav';
+  import { realMove, BACK_KEYS, moveFocus } from './nav';
 
   export interface MenuOption {
     id: string;
@@ -66,7 +66,7 @@
     <h3>{title}</h3>
     <div class="options" style:--cols={cols}>
     {#each options as o, i (o.id)}
-      <button disabled={o.disabled} aria-pressed={o.selected} class="opt" class:f={i === focus} tabindex="-1" onpointermove={() => { if (!o.disabled && focus !== i) { byPointer = true; focus = i; } }} onclick={() => onchoose(o.id)}>
+      <button disabled={o.disabled} aria-pressed={o.selected} class="opt" class:f={i === focus} tabindex="-1" onpointermove={(e) => { if (realMove(e) && !o.disabled && focus !== i) { byPointer = true; focus = i; } }} onclick={() => onchoose(o.id)}>
         {#if o.remoteIcon}<RemoteIcon name={o.remoteIcon} />{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d={o.icon} /></svg>{/if}
         <span class="text">{o.label}{#if o.hint}<small>{o.hint}</small>{/if}</span>
       </button>

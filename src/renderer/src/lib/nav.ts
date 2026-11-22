@@ -151,3 +151,10 @@ export function movePanelFocus(f: PanelFocus, key: string, tiles: number, action
       return f;
   }
 }
+
+/**
+ * A pointer event from the mouse really moving. Chromium also sends a pointermove when the page
+ * moves under a still pointer (a row scrolling, Home changing), with no movement: that must not
+ * take the highlight (it flashed a tile under a resting pointer as an app opened).
+ */
+export const realMove = (e: PointerEvent): boolean => e.movementX !== 0 || e.movementY !== 0;
