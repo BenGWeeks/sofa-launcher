@@ -1059,7 +1059,11 @@ async function onAction(action: GlobalAction): Promise<void> {
       // One line per Back, so a report like "Back only shows YouTube's controls" can be checked.
       console.log(`Back: ${key} to ${current ? `${current.name} (${current.type})` : 'the window in front (not one of Sofa’s apps)'}, window ${active ?? 'unknown'}`);
       if (current?.type === 'web' && active) {
-        await backToWebApp(key, active, { sendKeys: sendKeysToApp, watchHome: watchHomeRequest, activeWindow: () => wm.activeWindow(), goHome });
+        await backToWebApp(key, active, {
+          sendKeys: async (k) => { const sent = await sendKeysToApp(k); if (k !== key) console.log(`Back: ${current.name} asked for a real ${k}: ${sent ? 'sent' : 'dropped'}`); return sent; },
+          watchHome: async (w) => { const request = await watchHomeRequest(w); console.log(`Back: ${current.name} asked for ${request ?? 'nothing'}`); return request; },
+          activeWindow: () => wm.activeWindow(), goHome,
+        });
       } else await sendKeysToApp(key);
       return;
     }
