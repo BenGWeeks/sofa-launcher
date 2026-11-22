@@ -138,6 +138,8 @@
   const counts = $derived(countParts(snap?.containers ?? []));
   /** A version for the one-line Update row: long tags are cut, the panel cannot scroll. */
   const short = (v: string) => (v.length > 22 ? `${v.slice(0, 21)}…` : v);
+  /** "valkey/valkey:9" → "9"; no tag means "latest". */
+  const tagOf = (image: string) => { const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(i + 1) : 'latest'; };
   const updates = $derived((snap?.containers ?? []).filter((c) => c.update?.available).length);
   /** Hide the heading when everything is in one unnamed group (no compose data published). */
   const headings = $derived(!(groups.length === 1 && groups[0]!.name === OTHER_GROUP));
@@ -301,6 +303,8 @@
   <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
 
   {#if detail}
+    <!-- For a mouse: a click anywhere left of the details closes them, as Back does. -->
+    <button class="shade" tabindex="-1" aria-label="Close details" onclick={back}></button>
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
       <div class="head">{@render icon(detail, detail.name, true)}<h3>{detail.name}</h3></div>
       {@render badge(detail.colour, detail.word)}
@@ -316,7 +320,12 @@
           <dd>
             {#if u.available}
               <span class="newer inline">{@render arrow()}Available</span>
-              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<span class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
+              <!-- Each on its own smaller line under Available: the versions, or for a floating tag the tag and image digests. -->
+              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<small class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</small>
+              {:else if u.kind === 'floating'}
+                <small class="quiet">A newer image for tag <span class="mono-text">{tagOf(detail.image)}</span></small>
+                {#if u.current && u.latest && u.latest !== u.current}<small class="mono-text quiet">{short(u.current)} → {short(u.latest)}</small>{/if}
+              {/if}
             {:else}Up to date{/if}
             {#if u.checkedAt && u.checkedAt <= now + 300_000}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
           </dd>
@@ -368,9 +377,10 @@
         </div>
       {/if}
       {#if canRestart}
-        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</p>
+        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<button class="hint-button" onclick={back}><span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</button></p>
       {:else}
-        <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
+        <!-- A tag, apart from the keys: this account can look but not restart (no restart service for it). -->
+        <p class="hint ro"><span class="tag" title="This account can’t restart containers">Read-only</span><button class="hint-button" onclick={back}><span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</button></p>
       {/if}
     </aside>
   {/if}
@@ -434,6 +444,13 @@
        border-radius: 0.45rem; background: #222a38; color: #fff; font-weight: 700; font-size: 0.95rem; }
   footer .k:first-child { margin-left: 0; }
 
+  /* Everything left of the details: invisible, and only there to take a mouse click. */
+  .shade { all: unset; position: absolute; top: 0; left: 0; bottom: 0; right: 34rem; cursor: pointer; }
+  /* A hand over a card (it opens the details) and over the details' controls, for a mouse. */
+  .card, .detail button { cursor: pointer; }
+  .hint-button { all: unset; cursor: pointer; } .hint-button:hover { color: #fff; }
+  .hint.ro { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .tag { padding: 0.15rem 0.6rem; border-radius: 1rem; border: 1px solid #3a4456; color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 1.6rem 2.4rem 1.2rem; overflow: hidden; background: #121722;
             box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
@@ -456,6 +473,7 @@
   .name.marked { padding-right: 1.3rem; }
   .versions { white-space: nowrap; }
   dd small { display: block; font-size: 1rem; margin-top: 0.1rem; }
+  dd small.mono-text { font-size: 0.95rem; }
   .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
            -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
   /* History: status colours are the view's own (always beside a glyph and word in the legend);
