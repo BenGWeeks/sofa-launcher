@@ -4,10 +4,12 @@ import { connect } from 'node:net';
 import { NAME_PATTERN, type RestartResult } from '@shared/containers';
 
 export interface Restarter {
-  /** May this account restart containers right now? */
+  /** May this account make this request (restart, or update) right now? */
   available(): Promise<boolean>;
   restart(name: string): Promise<RestartResult>;
 }
+
+export type ServiceVerb = 'restart' | 'update';
 
 /** Printable text only, capped: the service's reply is shown on screen. */
 const clean = (text: string) => text.replace(/[^\x20-\x7e]/g, '').trim().slice(0, 120);
@@ -24,8 +26,9 @@ const clean = (text: string) => text.replace(/[^\x20-\x7e]/g, '').trim().slice(0
 export class ContainerRestarter implements Restarter {
   private busy = false;
 
-  constructor(readonly path: string, private readonly timeoutMs = 150_000) {
-    if (!path.startsWith('/')) throw new Error('The restart socket must be an absolute path');
+  /** `verb`: the one request this socket grants ("restart", or "update" for the update socket). */
+  constructor(readonly path: string, private readonly timeoutMs = 150_000, readonly verb: ServiceVerb = 'restart') {
+    if (!path.startsWith('/')) throw new Error(`The ${verb} socket must be an absolute path`);
   }
 
   async available(): Promise<boolean> {
@@ -38,7 +41,7 @@ export class ContainerRestarter implements Restarter {
 
   async restart(name: string): Promise<RestartResult> {
     if (!NAME_PATTERN.test(name)) return { ok: false, message: 'That is not a container name' };
-    if (this.busy) return { ok: false, message: 'Another restart is still running' };
+    if (this.busy) return { ok: false, message: `Another ${this.verb} is still running` };
     this.busy = true;
     try { return await this.ask(name); } finally { this.busy = false; }
   }
@@ -55,15 +58,18 @@ export class ContainerRestarter implements Restarter {
         socket.destroy();
         resolve(result);
       };
-      const timer = setTimeout(() => done({ ok: false, message: 'The restart service did not answer in time' }), this.timeoutMs);
+      const verb = this.verb;
+      const timer = setTimeout(() => done({ ok: false, message: `The ${verb} service did not answer in time` }), this.timeoutMs);
       const finish = () => {
         const line = reply.split('\n')[0]!.trim();
-        if (line === 'ok') done({ ok: true, message: 'Restarted' });
-        else if (line.startsWith('error ')) done({ ok: false, message: clean(line.slice(6)) || 'The restart failed' });
-        else done({ ok: false, message: 'The restart service gave no answer' });
+        if (line === 'ok') done({ ok: true, message: verb === 'update' ? 'Updated' : 'Restarted' });
+        // "ok <what happened>" (an update: "already up to date", say), shown as a sentence.
+        else if (line.startsWith('ok ')) { const said = clean(line.slice(3)); done({ ok: true, message: said ? said[0]!.toUpperCase() + said.slice(1) : 'Done' }); }
+        else if (line.startsWith('error ')) done({ ok: false, message: clean(line.slice(6)) || `The ${verb} failed` });
+        else done({ ok: false, message: `The ${verb} service gave no answer` });
       };
       socket.setEncoding('utf8');
-      socket.on('connect', () => socket.write(`restart ${name}\n`));
+      socket.on('connect', () => socket.write(`${verb} ${name}\n`));
       socket.on('data', (chunk: string) => {
         reply += chunk;
         if (reply.includes('\n') || reply.length > 512) finish();
@@ -71,9 +77,9 @@ export class ContainerRestarter implements Restarter {
       socket.on('end', finish);
       socket.on('error', (e: NodeJS.ErrnoException) => done({
         ok: false,
-        message: e.code === 'EACCES' ? 'This account may not restart containers'
-          : e.code === 'ENOENT' || e.code === 'ECONNREFUSED' ? 'The restart service is not running'
-          : 'The restart service could not be reached',
+        message: e.code === 'EACCES' ? `This account may not ${verb} containers`
+          : e.code === 'ENOENT' || e.code === 'ECONNREFUSED' ? `The ${verb} service is not running`
+          : `The ${verb} service could not be reached`,
       }));
     });
   }

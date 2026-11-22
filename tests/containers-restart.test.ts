@@ -170,3 +170,102 @@ describe('status file: Update', () => {
     for (const Checked of ['5', '2001', '2026-11-19', 'Thu, 19 Nov 2026 04:30:00 GMT']) expect(update({ Available: true, Checked })!.checkedAt).toBeNull();
   });
 });
+
+/** The same script behind the update socket (argument "update"), with a fake `docker`. */
+describe('example update service script', () => {
+  const script = join(__dirname, '..', 'docs', 'examples', 'container-restart', 'sofa-container-restart');
+  function run(request: string, allowed = 'update') {
+    const dir = temp();
+    const log = join(dir, 'calls');
+    const compose = join(dir, 'compose.yml');
+    writeFileSync(compose, 'services: {}\n');
+    const row = (c: string, name: string, running: string, label: string, project = 'media', files = compose) =>
+      `${c.repeat(64)}|/${name}|${running}|sha256:old|${label}|${project}|${name}|${dir}|${files}`;
+    writeFileSync(join(dir, 'docker'), `#!/bin/bash
+echo "$*" >> ${JSON.stringify(log)}
+last=\${!#}
+if [[ $1 == inspect ]]; then
+  # After the update: the image the container now runs.
+  if [[ "$*" != *sofa.update* ]]; then [[ $last == web ]] && echo sha256:new || echo sha256:old; exit 0; fi
+  case $last in
+    web) echo "${row('a', 'web', 'true', 'true')}" ;;
+    same) echo "${row('b', 'same', 'true', ' Yes ')}" ;;
+    plain) echo "${row('c', 'plain', 'true', '')}" ;;
+    off) echo "${row('d', 'off', 'true', 'false')}" ;;
+    stopped) echo "${row('e', 'stopped', 'false', 'true')}" ;;
+    loose) echo "${row('f', 'loose', 'true', 'true', '')}" ;;
+    nofile) echo "${row('1', 'nofile', 'true', 'true', 'media', '/nowhere/compose.yml')}" ;;
+    badpull) echo "${row('2', 'badpull', 'true', 'true')}" ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [[ $1 == compose && "$*" == *" pull "* && $last == badpull ]]; then exit 1; fi
+exit 0
+`, { mode: 0o755 });
+    writeFileSync(join(dir, 'timeout'), '#!/bin/bash\nshift\nexec "$@"\n', { mode: 0o755 });
+    writeFileSync(join(dir, 'logger'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const out = spawnSync('bash', [script, allowed], { input: request, encoding: 'utf8', env: { PATH: `${dir}:${process.env.PATH}`, LANG: 'en_GB.UTF-8' }, timeout: 20_000 });
+    let calls = '';
+    try { calls = require('node:fs').readFileSync(log, 'utf8'); } catch { /* docker never called */ }
+    return { reply: out.stdout, calls, dir, compose };
+  }
+
+  it('pulls and recreates one compose service, from its own compose files, never building', () => {
+    const r = run('update web\n');
+    expect(r.reply).toBe('ok updated to the newer image\n');
+    const lines = r.calls.trim().split('\n');
+    const base = `compose --project-name media --project-directory ${r.dir} -f ${r.compose}`;
+    expect(lines).toContain(`${base} pull --quiet -- web`);
+    expect(lines).toContain(`${base} up -d --no-deps --no-build -- web`);
+  });
+
+  it('says when the image was already the newest', () => {
+    expect(run('update same\n').reply).toBe('ok already up to date\n');
+  });
+
+  it('refuses a container that has not opted in, a stopped one, or one not from compose', () => {
+    for (const name of ['plain', 'off']) expect(run(`update ${name}\n`).reply).toBe('error this container is not set up for updates (sofa.update)\n');
+    expect(run('update stopped\n').reply).toBe('error this container is not running\n');
+    expect(run('update loose\n').reply).toBe('error this container was not started by docker compose\n');
+    expect(run('update nofile\n').reply).toBe('error its compose file cannot be read\n');
+    for (const name of ['plain', 'stopped', 'loose', 'nofile']) expect(run(`update ${name}\n`).calls).not.toMatch(/^compose/m);
+  });
+
+  it('says so when the download fails, and does not recreate', () => {
+    const r = run('update badpull\n');
+    expect(r.reply).toBe('error the new image could not be downloaded\n');
+    expect(r.calls).not.toMatch(/ up -d /);
+  });
+
+  it('grants only its own socket’s request', () => {
+    expect(run('restart web\n').reply).toBe('error bad request\n');
+    expect(run('restart web\n').calls).toBe('');
+    expect(run('update web\n', 'restart').reply).toBe('error bad request\n');
+    expect(run('update web\n', 'restart').calls).toBe('');
+  });
+});
+
+describe('update service client', () => {
+  it('asks for an update, and reports what happened', async () => {
+    const s = await service((line) => (line.includes('same') ? 'ok already up to date\n' : 'ok\n'));
+    const u = new ContainerRestarter(s.path, 1000, 'update');
+    expect(await u.restart('sonarr')).toEqual({ ok: true, message: 'Updated' });
+    expect(await u.restart('same')).toEqual({ ok: true, message: 'Already up to date' });
+    expect(s.seen).toEqual(['update sonarr\n', 'update same\n']);
+  });
+
+  it('words its failures as an update', async () => {
+    const s = await service(() => 'error the new image could not be downloaded\n');
+    const u = new ContainerRestarter(s.path, 1000, 'update');
+    expect(await u.restart('web')).toEqual({ ok: false, message: 'the new image could not be downloaded' });
+    expect(await new ContainerRestarter(join(temp(), 'none.sock'), 1000, 'update').restart('web'))
+      .toEqual({ ok: false, message: 'The update service is not running' });
+  });
+
+  it('reads Updatable only when the file says true', () => {
+    const entry = (Updatable: unknown) => parseEntry({ Id: 'a'.repeat(64), Names: ['/web'], State: 'running', Status: 'Up', Updatable })!.updatable;
+    expect(entry(true)).toBe(true);
+    for (const v of [undefined, false, 'true', 1]) expect(entry(v)).toBe(false);
+  });
+});

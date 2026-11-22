@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CloseButton from './CloseButton.svelte';
   import RemoteIcon from './RemoteIcon.svelte';
   import type { RemoteIconId } from '@shared/buttons';
   import { untrack } from 'svelte';
@@ -61,6 +62,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="dim" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}>
   <div class="menu" class:wide={cols > 1} bind:this={menu}>
+    <CloseButton onclick={onclose} />
     <h3>{title}</h3>
     <div class="options" style:--cols={cols}>
     {#each options as o, i (o.id)}
@@ -76,7 +78,7 @@
 <style>
   .dim { position: fixed; inset: 0; background: rgba(3, 4, 6, 0.72); backdrop-filter: blur(0.3rem);
          display: flex; align-items: center; justify-content: center; z-index: 10; }
-  .menu { width: 34rem; max-height: 90vh; overflow-y: auto; border-radius: 1.6rem; padding: 2.4rem; background: #141922;
+  .menu { position: relative; width: 34rem; max-height: 90vh; overflow-y: auto; border-radius: 1.6rem; padding: 2.4rem; background: #141922;
           box-shadow: 0 0 0 1px #262e3c, 0 2rem 5rem rgba(0, 0, 0, 0.7); }
   .menu.wide { width: 62rem; }
   .options { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 0.8rem 1.2rem; }

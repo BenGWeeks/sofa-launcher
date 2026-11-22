@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import {
-    countParts, displayImage, groupContainers, iconFor, monogram, OTHER_GROUP, packGroups, shortName,
-    type ContainerColour, type ContainerHistorySeries, type ContainerInfo, type ContainersSnapshot,
+    countParts, displayImage, FILTER_FOR_COLOUR, FILTER_LABELS, groupContainers, iconFor, matchesFilter, monogram, OTHER_GROUP, packGroups, shortName,
+    type ContainerColour, type ContainerFilter, type ContainerHistorySeries, type ContainerInfo, type ContainersSnapshot,
   } from '@shared/containers';
   import StatusGlyph from './StatusGlyph.svelte';
   import { BACK_KEYS } from './nav';
@@ -40,48 +40,66 @@
   $effect(() => { void detail?.name; void loadHistory(); });
   let polls = 0;
 
-  // ---- restart (only when this account may: the snapshot says so) ------------
-  /** Which panel button has the highlight, and whether we are asking "are you sure?". */
-  let choice = $state<'close' | 'restart'>('close');
-  let confirming = $state(false);
-  /** The container being restarted (its name), while waiting for the answer. */
-  let restarting = $state<string | null>(null);
+  // ---- restart and update (only when this account may: the snapshot says so) -----
+  type Action = 'restart' | 'update';
+  /** Which panel button has the highlight, and which action we are asking "are you sure?" about. */
+  let choice = $state<'close' | Action>('close');
+  let confirming = $state<Action | null>(null);
+  /** The container being restarted or updated, while waiting for the answer. */
+  let working = $state<{ name: string; verb: Action } | null>(null);
   /** When the confirmation appeared: a double-click must not also be the answer to it. */
   let askedAt = 0;
-  let outcome = $state<{ ok: boolean; message: string } | null>(null);
+  let outcome = $state<{ ok: boolean; message: string; verb: Action } | null>(null);
   /** Only what is running: this never starts something that was stopped. */
   const canRestart = $derived(!!snap?.canRestart && !!detail?.restartable && detail.state === 'running');
+  /** Only an opted-in (sofa.update) running container with a newer image, for an account the update service lets in. */
+  const canUpdate = $derived(!!snap?.canUpdate && !!detail?.updatable && detail.state === 'running' && detail.update?.available === true);
+  const buttons = $derived<('close' | Action)[]>(['close', ...(canRestart ? ['restart' as const] : []), ...(canUpdate ? ['update' as const] : [])]);
 
   function openDetail(c: ContainerInfo | null) {
-    detail = c; choice = 'close'; confirming = false; outcome = null;
+    detail = c; choice = 'close'; confirming = null; outcome = null;
   }
 
-  async function restart() {
+  async function act(verb: Action) {
     const target = detail;
-    if (!target || restarting) return;
-    restarting = target.name; confirming = false; outcome = null;
-    const result = await window.sofaContainers.restart(target.name).catch(() => ({ ok: false, message: 'The launcher could not ask for the restart' }));
-    restarting = null; choice = 'close';
-    if (detail?.name === target.name) outcome = result;
+    if (!target || working) return;
+    working = { name: target.name, verb }; confirming = null; outcome = null;
+    const ask = verb === 'update' ? window.sofaContainers.update : window.sofaContainers.restart;
+    const result = await ask(target.name).catch(() => ({ ok: false, message: `The launcher could not ask for the ${verb}` }));
+    working = null; choice = 'close';
+    if (detail?.name === target.name) outcome = { ...result, verb };
     void refresh(true);
   }
 
   /** OK and the arrows inside the details panel. */
   function panelKey(key: string) {
-    if (restarting) return;
-    if (!canRestart) { if (key === 'Enter') openDetail(null); return; }
-    if (key === 'ArrowLeft' || key === 'ArrowRight') { choice = choice === 'close' ? 'restart' : 'close'; return; }
+    if (working) return;
+    if (buttons.length < 2) { if (key === 'Enter') openDetail(null); return; }
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      const row: ('close' | Action)[] = confirming ? ['close', confirming] : buttons;
+      const at = Math.max(0, row.indexOf(choice));
+      choice = row[(at + (key === 'ArrowRight' ? 1 : -1) + row.length) % row.length]!;
+      return;
+    }
     if (key !== 'Enter') return;
-    if (choice === 'close') { if (confirming) confirming = false; else openDetail(null); }
-    else if (confirming) void restart();
-    // Asking moves the highlight to Cancel: a second OK by reflex must not restart anything.
-    else { confirming = true; choice = 'close'; outcome = null; askedAt = Date.now(); }
+    if (choice === 'close') { if (confirming) confirming = null; else openDetail(null); }
+    else if (confirming === choice) void act(choice);
+    // Asking moves the highlight to Cancel: a second OK by reflex must not restart or update anything.
+    else { confirming = choice; choice = 'close'; outcome = null; askedAt = Date.now(); }
   }
 
   /** A mouse click on a panel button (the remote uses the keys). */
-  function click(which: 'close' | 'restart') {
-    if (confirming && which === 'restart' && Date.now() - askedAt < 700) return;
+  function click(which: 'close' | Action) {
+    if (confirming && which !== 'close' && Date.now() - askedAt < 700) return;
     choice = which; panelKey('Enter');
+  }
+
+  /** What an answer says on screen: "web was restarted", "web: already up to date". */
+  function said(o: { ok: boolean; message: string; verb: Action }, name: string): string {
+    if (!o.ok) return o.message;
+    if (o.message === 'Restarted') return `${name} was restarted`;
+    if (o.message === 'Updated') return `${name} was updated`;
+    return `${name}: ${o.message[0]!.toLowerCase()}${o.message.slice(1)}`;
   }
 
   const STATUS_WORDS: Record<ContainerColour, string> = { green: 'Running', amber: 'Not ready', red: 'Problem', grey: 'Stopped' };
@@ -125,7 +143,16 @@
   const cpu = $derived(trace('cpu'));
   const mem = $derived(trace('mem'));
 
-  const groups = $derived(groupContainers(snap?.containers ?? []));
+  /** Red, green, yellow or blue on the remote (or a click on a count): only those cards. The same again: all. */
+  let filter = $state<ContainerFilter | null>(null);
+  function toggleFilter(f: ContainerFilter) {
+    if (working) return;
+    filter = filter === f ? null : f;
+    focus = 0;
+    openDetail(null);
+  }
+  const shown = $derived(filter ? (snap?.containers ?? []).filter((c) => matchesFilter(c, filter!)) : snap?.containers ?? []);
+  const groups = $derived(groupContainers(shown));
   const rows = $derived(packGroups(groups, COLS));
   /** Cards in display order (focus indexes into this), with each group's first index. */
   const cards = $derived(rows.flat().flatMap((g) => g.containers));
@@ -138,6 +165,8 @@
   const counts = $derived(countParts(snap?.containers ?? []));
   /** A version for the one-line Update row: long tags are cut, the panel cannot scroll. */
   const short = (v: string) => (v.length > 22 ? `${v.slice(0, 21)}…` : v);
+  /** "valkey/valkey:9" → "9"; no tag means "latest". */
+  const tagOf = (image: string) => { const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(i + 1) : 'latest'; };
   const updates = $derived((snap?.containers ?? []).filter((c) => c.update?.available).length);
   /** Hide the heading when everything is in one unnamed group (no compose data published). */
   const headings = $derived(!(groups.length === 1 && groups[0]!.name === OTHER_GROUP));
@@ -188,7 +217,7 @@
 
   /** Back: one step out (confirmation, then details, then the view). */
   function back() {
-    if (restarting) { /* wait for the answer */ } else if (confirming) confirming = false; else if (detail) openDetail(null); else onclose();
+    if (working) { /* wait for the answer */ } else if (confirming) confirming = null; else if (detail) openDetail(null); else onclose();
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -206,13 +235,21 @@
     e.preventDefault();
   }
 
+  // Fewer cards after a refresh or a filter: keep the highlight on one that exists.
+  $effect(() => { if (focus >= cards.length && cards.length) focus = cards.length - 1; });
+
   onMount(() => {
     document.documentElement.classList.add('containers-open');
+    void window.sofa.containersView(true);
+    const onFilter = (e: Event) => toggleFilter((e as CustomEvent<ContainerFilter>).detail);
+    window.addEventListener('sofa-containers-filter', onFilter);
     void refresh(true);
     const poll = setInterval(() => void refresh(), REFRESH_MS);
     const ticker = setInterval(() => (now = Date.now()), 1000);
     return () => {
       clearInterval(poll); clearInterval(ticker);
+      window.removeEventListener('sofa-containers-filter', onFilter);
+      void window.sofa.containersView(false);
       document.documentElement.classList.remove('containers-open');
     };
   });
@@ -243,8 +280,9 @@
     <div class="title">
       <h1>Containers</h1>
       <p class="counts">
-        {#each counts as part, i}{#if i}<span class="sep">·</span>{/if}<span class="count {part.colour}"><StatusGlyph colour={part.colour} />{part.text}</span>{/each}
-        {#if updates}<span class="sep">·</span><span class="count newer">{@render arrow()}{updates} {updates === 1 ? 'update' : 'updates'}</span>{/if}
+        <!-- Each count is also a filter (the remote's coloured buttons do the same). -->
+        {#each counts as part, i}{#if i}<span class="sep">·</span>{/if}<button class="count {part.colour}" class:on={filter === FILTER_FOR_COLOUR[part.colour]} class:off={!!filter && filter !== FILTER_FOR_COLOUR[part.colour]} tabindex="-1" onclick={() => toggleFilter(FILTER_FOR_COLOUR[part.colour])}><StatusGlyph colour={part.colour} />{part.text}</button>{/each}
+        {#if updates}<span class="sep">·</span><button class="count newer" class:on={filter === 'updates'} class:off={!!filter && filter !== 'updates'} tabindex="-1" onclick={() => toggleFilter('updates')}>{@render arrow()}{updates} {updates === 1 ? 'update' : 'updates'}</button>{/if}
       </p>
     </div>
     <div class="updated">
@@ -267,6 +305,8 @@
       <p class="message">Reading container status…</p>
     {:else if !snap.configured}
       <p class="message">Docker isn’t set up. Add a <code>[containers]</code> status file to <code>config.toml</code>.</p>
+    {:else if !cards.length && filter}
+      <p class="message">No containers match <b>{FILTER_LABELS[filter]}</b>. Press the same colour again, or click it above, to show all.</p>
     {:else if !cards.length}
       <p class="message">{snap.error ? 'No container status yet.' : 'The status file lists no containers.'}</p>
     {:else}
@@ -280,7 +320,7 @@
                 {#each group.containers as c, i (c.id)}
                   {@const label = headings ? shortName(c.name, group.name) : c.name}
                   <button class="card {c.colour}" class:focused={offset + i === focus} tabindex="-1"
-                    onclick={() => { if (!restarting) { focus = offset + i; openDetail(c); } }}>
+                    onclick={() => { if (!working) { focus = offset + i; openDetail(c); } }}>
                     {@render icon(c, label)}
                     {#if c.update?.available}<span class="newer corner" title="Update available">{@render arrow()}<span class="sr">Update available</span></span>{/if}
                     <span class="text">
@@ -298,9 +338,11 @@
     {/if}
   </div>
 
-  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
+  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<span class="k colours" aria-hidden="true"><i class="red"></i><i class="green"></i><i class="yellow"></i><i class="blue"></i></span>{filter ? `${FILTER_LABELS[filter]} only` : 'Filter'}<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
 
   {#if detail}
+    <!-- For a mouse: a click anywhere left of the details closes them, as Back does. -->
+    <button class="shade" tabindex="-1" aria-label="Close details" onclick={back}></button>
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
       <div class="head">{@render icon(detail, detail.name, true)}<h3>{detail.name}</h3></div>
       {@render badge(detail.colour, detail.word)}
@@ -316,7 +358,12 @@
           <dd>
             {#if u.available}
               <span class="newer inline">{@render arrow()}Available</span>
-              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<span class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
+              <!-- Each on its own smaller line under Available: the versions, or for a floating tag the tag and image digests. -->
+              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<small class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</small>
+              {:else if u.kind === 'floating'}
+                <small class="quiet">A newer image for tag <span class="mono-text">{tagOf(detail.image)}</span></small>
+                {#if u.current && u.latest && u.latest !== u.current}<small class="mono-text quiet">{short(u.current)} → {short(u.latest)}</small>{/if}
+              {/if}
             {:else}Up to date{/if}
             {#if u.checkedAt && u.checkedAt <= now + 300_000}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
           </dd>
@@ -351,26 +398,39 @@
           {/each}
         </section>
       {/if}
-      {#if canRestart || restarting || outcome}
+      {#if buttons.length > 1 || working || outcome}
         <div class="actions">
-          {#if restarting}
-            <p class="note" role="status">Restarting {restarting}…</p>
+          {#if working}
+            <p class="note" role="status">{working.verb === 'update' ? `Updating ${working.name}… downloading the newer image can take a few minutes` : `Restarting ${working.name}…`}</p>
           {:else}
-            {#if outcome}<p class="note {outcome.ok ? 'green' : 'red'}" role="status"><StatusGlyph colour={outcome.ok ? 'green' : 'red'} />{outcome.ok ? `${detail.name} was restarted` : outcome.message}</p>{/if}
-            {#if confirming}<p class="note" role="alert">Restart {detail.name}? It will be unavailable for a moment.</p>{/if}
-            {#if canRestart}
+            {#if outcome}<p class="note {outcome.ok ? 'green' : 'red'}" role="status"><StatusGlyph colour={outcome.ok ? 'green' : 'red'} />{said(outcome, detail.name)}</p>{/if}
+            {#if confirming === 'restart'}<p class="note" role="alert">Restart {detail.name}? It will be unavailable for a moment.</p>
+            {:else if confirming === 'update' && detail.update}
+              {@const u = detail.update}
+              <p class="note" role="alert">
+                <span>Update {detail.name} to the newer image? It restarts with it: unavailable for a moment, and a faulty image could stop it working.
+                  <small class="mono-text">{detail.image}: {u.kind === 'floating' ? `${short(u.current)} → ${short(u.latest)} (tag ${tagOf(detail.image)})` : `${short(u.current) || '?'} → ${short(u.latest)}`}</small></span>
+              </p>
+            {/if}
+            {#if buttons.length > 1}
               <div class="buttons">
                 <button class:focused={choice === 'close'} tabindex="-1" onclick={() => click('close')}>{confirming ? 'Cancel' : 'Close'}</button>
-                <button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => click('restart')}>{confirming ? 'Restart now' : 'Restart'}</button>
+                {#if confirming}
+                  <button class="go" class:focused={choice === confirming} tabindex="-1" onclick={() => click(confirming!)}>{confirming === 'update' ? 'Update now' : 'Restart now'}</button>
+                {:else}
+                  {#if canRestart}<button class="go" class:focused={choice === 'restart'} tabindex="-1" onclick={() => click('restart')}>Restart</button>{/if}
+                  {#if canUpdate}<button class="go" class:focused={choice === 'update'} tabindex="-1" onclick={() => click('update')}>Update</button>{/if}
+                {/if}
               </div>
             {/if}
           {/if}
         </div>
       {/if}
-      {#if canRestart}
-        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</p>
+      {#if buttons.length > 1}
+        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<button class="hint-button" onclick={back}><span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</button></p>
       {:else}
-        <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
+        <!-- A tag, apart from the keys: this account can look but not restart (no restart service for it). -->
+        <p class="hint ro"><span class="tag" title="This account can’t restart containers">Read-only</span><button class="hint-button" onclick={back}><span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</button></p>
       {/if}
     </aside>
   {/if}
@@ -385,6 +445,14 @@
   h1 { margin: 0; font-size: 2.4rem; font-weight: 600; letter-spacing: -0.02em; }
   .counts { margin: 0; font-size: 1.35rem; display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
   .count { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+  button.count { all: unset; display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; cursor: pointer; border-radius: 0.5rem; padding: 0.1rem 0.35rem; margin: 0 -0.35rem; }
+  button.count:hover { background: #1c2330; }
+  button.count.on { box-shadow: 0 0 0 0.15rem currentColor; }
+  button.count.off { opacity: 0.45; }
+  /* The remote's four coloured buttons, in the footer's key hint. */
+  .k.colours { gap: 0.2rem; padding: 0 0.45rem; }
+  .k.colours i { width: 0.55rem; height: 0.55rem; border-radius: 50%; }
+  .k.colours .red { background: #ff5b5b; } .k.colours .green { background: #3ddc84; } .k.colours .yellow { background: #ffc83d; } .k.colours .blue { background: #4d8dff; }
   .count :global(svg) { width: 1.35rem; height: 1.35rem; }
   .sep { color: var(--muted); }
   .updated { text-align: right; font-size: 1.35rem; }
@@ -434,6 +502,13 @@
        border-radius: 0.45rem; background: #222a38; color: #fff; font-weight: 700; font-size: 0.95rem; }
   footer .k:first-child { margin-left: 0; }
 
+  /* Everything left of the details: invisible, and only there to take a mouse click. */
+  .shade { all: unset; position: absolute; top: 0; left: 0; bottom: 0; right: 34rem; cursor: pointer; }
+  /* A hand over a card (it opens the details) and over the details' controls, for a mouse. */
+  .card, .detail button { cursor: pointer; }
+  .hint-button { all: unset; cursor: pointer; } .hint-button:hover { color: #fff; }
+  .hint.ro { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .tag { padding: 0.15rem 0.6rem; border-radius: 1rem; border: 1px solid #3a4456; color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 1.6rem 2.4rem 1.2rem; overflow: hidden; background: #121722;
             box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
@@ -456,6 +531,7 @@
   .name.marked { padding-right: 1.3rem; }
   .versions { white-space: nowrap; }
   dd small { display: block; font-size: 1rem; margin-top: 0.1rem; }
+  dd small.mono-text { font-size: 0.95rem; }
   .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
            -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
   /* History: status colours are the view's own (always beside a glyph and word in the legend);

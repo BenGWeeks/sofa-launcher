@@ -1,0 +1,17 @@
+[Unit]
+Description=Sofa Launcher: update a container to its newer image (socket)
+
+[Socket]
+ListenStream=/run/sofa-container-update.sock
+# Only members of this group may ask for an update. It is a separate group from restarts
+# (sofa-docker): an update runs new code from the image's publisher. Add accounts with:
+#   sudo groupadd --system sofa-update && sudo gpasswd -a <account> sofa-update
+SocketUser=root
+SocketGroup=sofa-update
+SocketMode=0660
+Accept=yes
+# One update at a time: two pulls at once would only slow each other down.
+MaxConnections=1
+
+[Install]
+WantedBy=sockets.target

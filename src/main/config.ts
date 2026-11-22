@@ -92,6 +92,7 @@ const ConfigSchema = z
       file: statusFile,
       /** Optional: the restart service's own socket (see the README). Never Docker's socket. */
       restart_socket: statusFile.refine((p) => !/(^|\/)docker\.sock$/.test(p), 'the restart service’s socket, not Docker’s').optional(),
+      update_socket: statusFile.refine((p) => !/(^|\/)docker\.sock$/.test(p), 'the update service’s socket, not Docker’s').optional(),
     }).strict().optional(),
     games: z
       .object({
@@ -179,6 +180,8 @@ export interface Config {
   containersFile?: string;
   /** The restart service's socket ([containers] restart_socket), if set up. */
   containersRestartSocket?: string;
+  /** The update service's socket ([containers] update_socket), if set up. */
+  containersUpdateSocket?: string;
   /**
    * Every app entry of config.toml that resolves (cameras excluded), in file order, including
    * `hidden = true` ones (which are not in `apps`), so Edit home screen can switch them back on.
@@ -280,7 +283,7 @@ function resolve(raw: RawConfig): Config {
     apps.splice(apps.length - raw.cameras.length, 0, { id: 'all-cameras', name: 'All cameras', type: 'camera', entity: 'all', wmClass: 'sofa-all-cameras', brand: 'camera', hotkeys: {} });
   }
   const usedCatalogue = [...new Set(raw.apps.flatMap((a) => (a.catalogue ? [a.catalogue] : [])))];
-  return { ui: raw.ui, apps, homeAssistantUrl, buttons: { ...DEFAULT_BUTTONS, ...raw.buttons }, games: raw.games, configuredApps, usedCatalogue, containersFile: raw.containers?.file, containersRestartSocket: raw.containers?.restart_socket };
+  return { ui: raw.ui, apps, homeAssistantUrl, buttons: { ...DEFAULT_BUTTONS, ...raw.buttons }, games: raw.games, configuredApps, usedCatalogue, containersFile: raw.containers?.file, containersRestartSocket: raw.containers?.restart_socket, containersUpdateSocket: raw.containers?.update_socket };
 }
 
 /** Written to ~/.config/sofa-launcher/config.toml on first run (never overwritten). */
