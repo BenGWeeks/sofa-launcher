@@ -25,7 +25,9 @@
 
 <svelte:window {onkeydown} />
 
-<div class="dim" role="dialog" aria-modal="true" aria-label="Background">
+<!-- A click on the dimmed area around the box closes it, as Back does (Back and Esc are the keyboard way). -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="dim" role="dialog" aria-modal="true" aria-label="Background" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}>
   <div class="picker">
     <h3>{error ? 'Couldn’t save background. Try again?' : 'Background'}</h3>
     <div class="grid" style:--cols={COLS}>

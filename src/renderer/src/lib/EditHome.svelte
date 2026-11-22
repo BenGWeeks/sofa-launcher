@@ -95,7 +95,9 @@
 
 <svelte:window {onkeydown} />
 
-<div class="dim" role="dialog" aria-modal="true" aria-label="Edit home screen">
+<!-- A click on the dimmed area around the box closes it, as Back does (Back and Esc are the keyboard way). -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="dim" role="dialog" aria-modal="true" aria-label="Edit home screen" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}>
   <div class="picker">
     <header>
       <h3>Edit home screen</h3>
