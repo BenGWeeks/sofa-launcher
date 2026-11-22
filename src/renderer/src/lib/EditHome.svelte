@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CloseButton from './CloseButton.svelte';
   import { onMount, tick } from 'svelte';
   import type { HomeItem, HomeItems, HomeSection } from '@shared/types';
   import Tile from './Tile.svelte';
@@ -100,6 +101,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="dim" role="dialog" aria-modal="true" aria-label="Edit home screen" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}>
   <div class="picker">
+    <CloseButton onclick={onclose} />
     <header>
       <h3>Edit home screen</h3>
       <p class="help" class:message={!!message} aria-live="polite">{message ?? 'OK, Space or a click shows or hides a tile · Back returns to Settings'}</p>
@@ -136,7 +138,7 @@
   .dim { position: fixed; inset: 0; background: rgba(3, 4, 6, 0.72); backdrop-filter: blur(0.3rem); z-index: 10; }
   .picker { position: absolute; inset: 1.4rem 2rem; border-radius: 1.6rem; background: #141922; display: flex; flex-direction: column;
             box-shadow: 0 0 0 1px #262e3c, 0 2rem 5rem rgba(0, 0, 0, 0.7); overflow: hidden; }
-  header { display: flex; align-items: baseline; justify-content: space-between; gap: 2rem; padding: 1.6rem 2.4rem 0.4rem; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 2rem; padding: 1.6rem 4.6rem 0.4rem 2.4rem; }
   h3 { margin: 0; font-size: 2rem; }
   .help { margin: 0; font-size: 1.1rem; color: var(--muted); }
   .help.message { color: var(--fg); font-weight: 700; }
