@@ -392,3 +392,21 @@ export function packGroups(groups: ContainerGroup[], cols: number): ContainerGro
   }
   return rows.map((r) => r.groups);
 }
+
+// ---- filters (the remote's coloured buttons, or a click on a count) ----------
+
+/** Red: problems · green: running · yellow: not running (amber and grey) · blue: updates available. */
+export type ContainerFilter = 'problems' | 'running' | 'notRunning' | 'updates';
+
+/** The remote's coloured buttons (named for their screen-in-screen use) as filters. */
+export const FILTER_FOR_BUTTON = { cameraToggle: 'problems', cameraNext: 'running', cameraCorner: 'notRunning', blue: 'updates' } as const satisfies Record<string, ContainerFilter>;
+
+export const FILTER_LABELS: Record<ContainerFilter, string> = { problems: 'Problems', running: 'Running', notRunning: 'Not running', updates: 'Updates' };
+
+/** The filter a summary count belongs to. */
+export const FILTER_FOR_COLOUR: Record<ContainerColour, ContainerFilter> = { red: 'problems', green: 'running', amber: 'notRunning', grey: 'notRunning' };
+
+export function matchesFilter(c: Pick<ContainerInfo, 'colour' | 'update'>, filter: ContainerFilter): boolean {
+  if (filter === 'updates') return !!c.update?.available;
+  return FILTER_FOR_COLOUR[c.colour] === filter;
+}
