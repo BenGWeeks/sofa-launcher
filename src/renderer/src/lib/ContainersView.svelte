@@ -379,7 +379,8 @@
       {#if canRestart}
         <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<button class="hint-button" onclick={back}><span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</button></p>
       {:else}
-        <p class="hint">Read-only · <button class="hint-button" onclick={back}><span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</button></p>
+        <!-- A tag, apart from the keys: this account can look but not restart (no restart service for it). -->
+        <p class="hint ro"><span class="tag" title="This account can’t restart containers">Read-only</span><button class="hint-button" onclick={back}><span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</button></p>
       {/if}
     </aside>
   {/if}
@@ -445,7 +446,11 @@
 
   /* Everything left of the details: invisible, and only there to take a mouse click. */
   .shade { all: unset; position: absolute; top: 0; left: 0; bottom: 0; right: 34rem; cursor: pointer; }
+  /* A hand over a card (it opens the details) and over the details' controls, for a mouse. */
+  .card, .detail button { cursor: pointer; }
   .hint-button { all: unset; cursor: pointer; } .hint-button:hover { color: #fff; }
+  .hint.ro { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .tag { padding: 0.15rem 0.6rem; border-radius: 1rem; border: 1px solid #3a4456; color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 1.6rem 2.4rem 1.2rem; overflow: hidden; background: #121722;
             box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
