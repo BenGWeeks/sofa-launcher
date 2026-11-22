@@ -63,6 +63,10 @@ Use this for desktop interfaces without directional navigation, including Nod.ie
 and Netflix browsing. Jellyfin uses its native TV mode; YouTube already requests
 its TV interface (availability on desktop browsers depends on Google).
 
+**Mouse:** in an app, pushing the pointer against the bottom edge of the screen
+opens the panel, as Menu does. A click above the panel returns to the app. This is
+off in remote-pointer mode, where the arrows are moving the pointer.
+
 The launcher passes navigation keys to the app in front. KDE handles system
 volume keys. Sofa routes transport keys as described below. Back uses the launcher translation
 shown in the table.
