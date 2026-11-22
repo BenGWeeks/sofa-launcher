@@ -301,6 +301,8 @@
   <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
 
   {#if detail}
+    <!-- For a mouse: a click anywhere left of the details closes them, as Back does. -->
+    <button class="shade" tabindex="-1" aria-label="Close details" onclick={back}></button>
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
       <div class="head">{@render icon(detail, detail.name, true)}<h3>{detail.name}</h3></div>
       {@render badge(detail.colour, detail.word)}
@@ -368,9 +370,9 @@
         </div>
       {/if}
       {#if canRestart}
-        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</p>
+        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<button class="hint-button" onclick={back}><span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</button></p>
       {:else}
-        <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
+        <p class="hint">Read-only · <button class="hint-button" onclick={back}><span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</button></p>
       {/if}
     </aside>
   {/if}
@@ -434,6 +436,9 @@
        border-radius: 0.45rem; background: #222a38; color: #fff; font-weight: 700; font-size: 0.95rem; }
   footer .k:first-child { margin-left: 0; }
 
+  /* Everything left of the details: invisible, and only there to take a mouse click. */
+  .shade { all: unset; position: absolute; top: 0; left: 0; bottom: 0; right: 34rem; cursor: pointer; }
+  .hint-button { all: unset; cursor: pointer; } .hint-button:hover { color: #fff; }
   .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 1.6rem 2.4rem 1.2rem; overflow: hidden; background: #121722;
             box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
