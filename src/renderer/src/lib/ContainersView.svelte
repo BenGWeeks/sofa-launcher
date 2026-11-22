@@ -138,6 +138,8 @@
   const counts = $derived(countParts(snap?.containers ?? []));
   /** A version for the one-line Update row: long tags are cut, the panel cannot scroll. */
   const short = (v: string) => (v.length > 22 ? `${v.slice(0, 21)}…` : v);
+  /** "valkey/valkey:9" → "9"; no tag means "latest". */
+  const tagOf = (image: string) => { const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(i + 1) : 'latest'; };
   const updates = $derived((snap?.containers ?? []).filter((c) => c.update?.available).length);
   /** Hide the heading when everything is in one unnamed group (no compose data published). */
   const headings = $derived(!(groups.length === 1 && groups[0]!.name === OTHER_GROUP));
@@ -318,7 +320,12 @@
           <dd>
             {#if u.available}
               <span class="newer inline">{@render arrow()}Available</span>
-              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<span class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
+              <!-- Each on its own smaller line under Available: the versions, or for a floating tag the tag and image digests. -->
+              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<small class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</small>
+              {:else if u.kind === 'floating'}
+                <small class="quiet">A newer image for tag <span class="mono-text">{tagOf(detail.image)}</span></small>
+                {#if u.current && u.latest && u.latest !== u.current}<small class="mono-text quiet">{short(u.current)} → {short(u.latest)}</small>{/if}
+              {/if}
             {:else}Up to date{/if}
             {#if u.checkedAt && u.checkedAt <= now + 300_000}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
           </dd>
@@ -461,6 +468,7 @@
   .name.marked { padding-right: 1.3rem; }
   .versions { white-space: nowrap; }
   dd small { display: block; font-size: 1rem; margin-top: 0.1rem; }
+  dd small.mono-text { font-size: 0.95rem; }
   .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
            -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
   /* History: status colours are the view's own (always beside a glyph and word in the legend);
