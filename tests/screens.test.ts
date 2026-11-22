@@ -48,4 +48,8 @@ describe('pickDisplay', () => {
   it('uses the primary screen for "auto"', () => expect(pickDisplay('auto', named, laptop)).toBe(laptop));
   it('uses the chosen screen when it is connected', () => expect(pickDisplay('HDMI-A-1', named, laptop)).toBe(tv));
   it('falls back to the primary screen when the chosen one is unplugged', () => expect(pickDisplay('HDMI-A-1', named.slice(0, 1), laptop)).toBe(laptop));
+  it('keeps a numbered choice working once xrandr names the screens', () => {
+    expect(pickDisplay('screen-2', named, laptop)).toBe(tv);
+    expect(pickDisplay('screen-3', named, laptop)).toBe(laptop);
+  });
 });

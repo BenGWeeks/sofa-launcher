@@ -44,8 +44,15 @@ export function nameDisplays<D extends DisplayLike>(displays: readonly D[], moni
   });
 }
 
-/** The display a choice points at: the named one when it is connected, else the primary one. */
+/**
+ * The display a choice points at: the named one when it is connected, else the primary one.
+ * A numbered name ("screen-2", offered while xrandr could not be read) keeps meaning the Nth
+ * display after xrandr names it.
+ */
 export function pickDisplay<D extends DisplayLike>(choice: string, named: readonly NamedDisplay<D>[], primary: D): D {
   if (choice === 'auto') return primary;
-  return named.find((n) => n.name === choice)?.display ?? primary;
+  const byName = named.find((n) => n.name === choice)?.display;
+  if (byName) return byName;
+  const numbered = /^screen-(\d+)$/.exec(choice);
+  return (numbered ? named[Number(numbered[1]) - 1]?.display : undefined) ?? primary;
 }

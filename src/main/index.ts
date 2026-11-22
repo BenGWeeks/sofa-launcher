@@ -650,10 +650,14 @@ function placeHome(): Promise<void> {
  */
 async function bringToHomeScreen(target: ResolvedApp): Promise<void> {
   if (screen.getAllDisplays().length < 2 || !win || win.isDestroyed()) return;
-  const state = pip.state;
-  if (state.active && [state.baseId, state.insetId].includes(target.id)) return;
+  const paired = () => {
+    const state = pip.state;
+    return state.active && [state.baseId, state.insetId].includes(target.id);
+  };
+  if (paired()) return;
   const window = (await wm.findByClass(target.wmClass).catch(() => [])).at(-1);
-  if (!window) return;
+  // Read again: a pair may have been started while the window was being looked up.
+  if (!window || paired()) return;
   await x11Pip.toScreen(window, physicalBounds(screen.getDisplayMatching(win.getBounds())))
     .catch((error) => console.warn(`Couldn’t move ${target.name} to Home's screen:`, error));
 }

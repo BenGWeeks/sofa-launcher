@@ -48,6 +48,8 @@
     } catch { browserError = true; }
   }
   let screenMenu = $state(false);
+  /** Counts Settings choices: a screen list that arrives after another choice is ignored. */
+  let choiceCount = 0;
   let screenError = $state(false);
   let screens = $state<ScreenState>({ choice: 'auto', screens: [] });
   const TICK = 'M5 12l4 4L19 6';
@@ -68,7 +70,9 @@
     return options;
   });
   async function openScreens() {
+    const request = choiceCount;
     try { screens = await window.sofa.screens(); } catch { /* the list stays as it was */ }
+    if (request !== choiceCount) return;
     screenMenu = true;
   }
   /** Closes the whole menu on success: Home has moved, and is in full view on its new screen. */
@@ -115,6 +119,7 @@
   let returnFocus = $state(0);
 
   function choose(id: string) {
+    choiceCount += 1;
     returnFocus = options.findIndex((o) => o.id === id);
     if (id === 'browser') return (browserMenu = true);
     if (id === 'screen') return void openScreens();
