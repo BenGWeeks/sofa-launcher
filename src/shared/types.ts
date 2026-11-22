@@ -101,6 +101,8 @@ export interface AboutInfo {
   configPath: string;
   /** OS-level sandbox evidence for this renderer (see --self-check). */
   sandboxed: boolean;
+  /** Started with --no-sandbox (run from the source folder, or in development). */
+  noSandboxSwitch: boolean;
 }
 
 /** A screen Sofa can run on (Menu → Settings → Screen). */

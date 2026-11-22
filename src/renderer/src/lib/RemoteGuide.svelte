@@ -31,7 +31,7 @@
   <RemoteDrawing {buttons} {active} />
   <div class="legend">
     <h3>Your remote, right now</h3>
-    <p>{where}{#if context !== 'home' && appName}&nbsp;<b>{appName}</b>{/if}<span class="sep">·</span><span class="k"><RemoteIcon name="back" /></span> or <span class="k"><RemoteIcon name="info" /></span> closes this</p>
+    <p>{where}{#if context !== 'home' && appName}&nbsp;<b>{appName}</b>{/if}<span class="sep">·</span><button class="hint" onclick={onclose}><span class="k"><RemoteIcon name="back" /></span> or <span class="k"><RemoteIcon name="info" /></span> closes this</button></p>
     <div class="lg" class:two={legend.length > 9}>
       {#each legend as row (row.id)}
         <span class="key {row.color ?? ''}">{#if row.icon}<RemoteIcon name={row.icon} />{/if}{row.label}</span>
@@ -57,4 +57,6 @@
   .key { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-width: 8rem; height: 2.2rem; padding: 0 0.9rem;
          border-radius: 0.6rem; background: #222a38; color: #fff; font-weight: 700; font-size: 1.05rem; white-space: nowrap; }
 
+  /* Also a button, for a mouse. */
+  .hint { all: unset; cursor: pointer; } .hint:hover { color: #fff; }
 </style>

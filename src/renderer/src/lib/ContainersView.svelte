@@ -186,12 +186,15 @@
     card.scrollIntoView({ block: 'nearest' });
   }
 
+  /** Back: one step out (confirmation, then details, then the view). */
+  function back() {
+    if (restarting) { /* wait for the answer */ } else if (confirming) confirming = false; else if (detail) openDetail(null); else onclose();
+  }
+
   function onkeydown(e: KeyboardEvent) {
     e.stopPropagation();
     if (e.repeat && !e.key.startsWith('Arrow')) { e.preventDefault(); return; }
-    if (BACK_KEYS.has(e.key)) {
-      if (restarting) { /* wait for the answer */ } else if (confirming) confirming = false; else if (detail) openDetail(null); else onclose();
-    } else if (e.key === 'Enter') {
+    if (BACK_KEYS.has(e.key)) back(); else if (e.key === 'Enter') {
       if (detail) panelKey('Enter'); else openDetail(cards[focus] ?? null);
     } else if (e.key === ' ' && detail) {
       // Space would press whichever button a mouse click left focused: only OK chooses.
@@ -295,7 +298,7 @@
     {/if}
   </div>
 
-  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<span class="k"><RemoteIcon name="back" /></span>Back</footer>
+  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
 
   {#if detail}
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
@@ -490,4 +493,6 @@
   .buttons button.focused { box-shadow: 0 0 0 0.25rem var(--focus-ring), 0 0 1.4rem var(--accent-glow); background: #2b3547; color: #fff; }
   .hint { flex-shrink: 0; margin-top: auto; color: var(--muted); font-size: 1.1rem; }
   .hint .k { margin-left: 0.2rem; }
+  /* Back is also a button, for a mouse. */
+  .hint { all: unset; cursor: pointer; } .hint:hover { color: #fff; }
 </style>
