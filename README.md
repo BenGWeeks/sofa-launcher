@@ -523,6 +523,22 @@ Firefox can't be used: web apps rely on Chromium's app windows and per-app profi
 browser = "default"  # default, edge, chrome, chromium, brave or vivaldi
 ```
 
+## Screen
+
+With more than one screen (a monitor and a TV, or a laptop plugged into a TV), choose
+**Menu → Settings → Screen** to pick the one Sofa appears on. It lists each connected
+screen by its connector name (`HDMI-A-1`, `DP-2`), the name the desktop's display settings
+use. Home moves there straight away. The pill, the panel and the launch cover follow
+Home, and apps opened from Sofa are moved to Home's screen and made full screen there.
+
+**Automatic** (the default) uses the primary screen. A chosen screen that is unplugged
+is kept: Sofa uses the primary screen until it is plugged in again, then moves back.
+
+```toml
+[ui]
+screen = "auto"  # or a connector name, e.g. "HDMI-A-1"
+```
+
 `default` reads `xdg-settings get default-web-browser`. If that browser is not
 supported or installed, Sofa uses the first installed of Edge, Chromium, Brave,
 Vivaldi, then Chrome.

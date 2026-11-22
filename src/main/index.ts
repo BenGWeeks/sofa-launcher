@@ -28,7 +28,8 @@ import { IdlePointer } from './idle-pointer';
 import { prepareLaunchCover } from './launch-cover-window';
 import { parseOpenCommand, searchUrl, validateOpenCommand, type OpenCommand, type ParsedCommand } from './command';
 import { ConfigError, parseConfig, SEED_CONFIG, type Config, type ResolvedApp } from './config';
-import { validateBackground, validateTheme, validateBrowser, writeBackground, writeTheme, writeBrowser } from './config-writer';
+import { validateBackground, validateTheme, validateBrowser, validateScreen, writeBackground, writeTheme, writeBrowser, writeScreen } from './config-writer';
+import { nameDisplays, parseMonitors, pickDisplay, type NamedDisplay } from './screens';
 import { Debouncer } from './debounce';
 import { DEMO_CAMERA_ART, DEMO_STEAM_GAMES, demoArtBitmap, demoCameraHasStill, demoCameraStillBitmap, isDemoMode, screenshotConfig, steamGamesRow } from './demo';
 import { CameraStills } from './camera-stills';
@@ -598,6 +599,65 @@ function homeScreen(): Electron.Rectangle {
   return home.bounds;
 }
 
+/** Each display with its connector name ("HDMI-A-1") from xrandr; numbered names without it. */
+async function namedDisplays(): Promise<NamedDisplay<Electron.Display>[]> {
+  const stdout = await new Promise<string>((resolve) => {
+    execFile('xrandr', ['--listmonitors'], { timeout: 2000 }, (error, out) => resolve(error ? '' : String(out)));
+  });
+  return nameDisplays(screen.getAllDisplays(), parseMonitors(stdout), (point) => screen.dipToScreenPoint(point));
+}
+
+/** A display's bounds in physical X11 pixels (Electron reports DIP; EWMH geometry is physical). */
+function physicalBounds(display: Electron.Display): Electron.Rectangle {
+  const origin = screen.dipToScreenPoint(display.bounds);
+  return { ...origin, width: Math.round(display.bounds.width * display.scaleFactor), height: Math.round(display.bounds.height * display.scaleFactor) };
+}
+
+function leaveFullScreen(w: BrowserWindow): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => { clearTimeout(timer); w.removeListener('leave-full-screen', done); resolve(); };
+    const timer = setTimeout(done, 1500);
+    w.once('leave-full-screen', done);
+    w.setFullScreen(false);
+  });
+}
+
+let placingHome: Promise<void> = Promise.resolve();
+/**
+ * Put Home on the screen chosen in Settings → Screen ("auto": the primary one), or on the primary
+ * screen while the chosen one is unplugged. It moves only when it is somewhere else, one move at
+ * a time. The pill, the panel and the launch cover follow Home (homeScreen).
+ */
+function placeHome(): Promise<void> {
+  placingHome = placingHome.then(async () => {
+    if (DEMO || !win || win.isDestroyed()) return;
+    const target = pickDisplay(config.ui.screen, await namedDisplays(), screen.getPrimaryDisplay());
+    if (screen.getDisplayMatching(win.getBounds()).id === target.id) return;
+    const full = win.isFullScreen();
+    if (full) await leaveFullScreen(win);
+    const { x, y, width, height } = target.workArea;
+    const size = { width: Math.min(1280, width), height: Math.min(720, height) };
+    win.setBounds({ x: x + Math.round((width - size.width) / 2), y: y + Math.round((height - size.height) / 2), ...size });
+    if (full) win.setFullScreen(true);
+    placeToasts();
+  }).catch((error) => console.warn('Couldn’t move Home to the chosen screen:', error));
+  return placingHome;
+}
+
+/**
+ * With more than one screen, an app opened from Sofa goes to the screen Home is on, full screen
+ * there. Screen-in-screen places its own pair, so that is left alone.
+ */
+async function bringToHomeScreen(target: ResolvedApp): Promise<void> {
+  if (screen.getAllDisplays().length < 2 || !win || win.isDestroyed()) return;
+  const state = pip.state;
+  if (state.active && [state.baseId, state.insetId].includes(target.id)) return;
+  const window = (await wm.findByClass(target.wmClass).catch(() => [])).at(-1);
+  if (!window) return;
+  await x11Pip.toScreen(window, physicalBounds(screen.getDisplayMatching(win.getBounds())))
+    .catch((error) => console.warn(`Couldn’t move ${target.name} to Home's screen:`, error));
+}
+
 /** Keep the toast strip on the home window's screen (it is placed again whenever Home moves). */
 function placeToasts(): void {
   if (DEMO || !toastWin || toastWin.isDestroyed()) return;
@@ -693,7 +753,10 @@ async function openApp(...args: Parameters<typeof apps.open>): ReturnType<typeof
   // Inside the cover, so the cover stays up until the app is full screen again.
   const open = async (): ReturnType<typeof apps.open> => {
     const opened = await apps.open(...args);
-    if (opened.ok && target && !DEMO) await restoreFullscreen(target, wm, () => pip.state);
+    if (opened.ok && target && !DEMO) {
+      await bringToHomeScreen(target);
+      await restoreFullscreen(target, wm, () => pip.state);
+    }
     return opened;
   };
   const result = await (launcherInFront() && !DEMO && target
@@ -1051,9 +1114,7 @@ async function startPip(baseId: string, insetId: string): Promise<{ ok: boolean;
     // Electron reports DIP; EWMH geometry uses physical X11 pixels. Convert
     // the origin separately so mixed-scale display arrangements stay correct.
     const display = screen.getDisplayMatching(win!.getBounds());
-    const origin = screen.dipToScreenPoint(display.bounds);
-    const physicalBounds = { ...origin, width: Math.round(display.bounds.width * display.scaleFactor), height: Math.round(display.bounds.height * display.scaleFactor) };
-    await pip.start({ appId: baseId, name: base.name, windowId: baseWindow }, { appId: insetId, name: inset.name, windowId: insetWindow, camera: inset.type === 'camera' }, physicalBounds);
+    await pip.start({ appId: baseId, name: base.name, windowId: baseWindow }, { appId: insetId, name: inset.name, windowId: insetWindow, camera: inset.type === 'camera' }, physicalBounds(display));
     if (generation !== pipStartGeneration) { await pip.stop(); return { ok: false, message: 'Cancelled' }; }
     hidePanel(false);
     hideLauncher();
@@ -1193,6 +1254,28 @@ function registerIpc(): void {
     if (DEMO) throw new Error('Background persistence is disabled in demo mode');
     writeBackground(configPath, background);
     await loadConfig();
+  });
+  handle('launcher:screens', async () => {
+    const primary = screen.getPrimaryDisplay().id;
+    const current = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()).id : primary;
+    return {
+      choice: config.ui.screen,
+      screens: (await namedDisplays()).map(({ name, display }) => ({
+        name,
+        width: Math.round(display.bounds.width * display.scaleFactor),
+        height: Math.round(display.bounds.height * display.scaleFactor),
+        primary: display.id === primary,
+        builtIn: !!display.internal,
+        current: display.id === current,
+      })),
+    };
+  });
+  handle('launcher:setScreen', async (_e, value) => {
+    const choice = validateScreen(value);
+    if (DEMO) throw new Error('Screen persistence is disabled in demo mode');
+    writeScreen(configPath, choice);
+    await loadConfig();
+    await placeHome();
   });
   handle('launcher:browsers', () => ({ choice: config.ui.browser, installed: browsers.installed.map((b) => b.id), defaultBrowser: browsers.defaultBrowser?.id ?? null }));
   handle('launcher:setBrowser', async (_e, value) => {
@@ -1667,6 +1750,10 @@ if (flag('setup-user') || flag('undo-user-setup')) {
       screen.on('display-added', placeToasts);
       screen.on('display-removed', placeToasts);
       screen.on('display-metrics-changed', placeToasts);
+      // The chosen screen plugged in (Home goes there) or unplugged (Home goes to the primary one).
+      // xrandr can learn a new screen's name a moment after Electron sees it: look again shortly.
+      screen.on('display-added', () => { void placeHome(); setTimeout(() => void placeHome(), 1500); });
+      screen.on('display-removed', () => void placeHome());
       toastWin.on('show', syncCameraOverlays);
       toastWin.on('hide', syncCameraOverlays);
       toastWin.webContents.once('did-finish-load', () => {
@@ -1684,6 +1771,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
         if (panelOpen() && !windowHandoff.active && Date.now() - panelShownAt > 500) hidePanel(false);
       });
     }
+    void placeHome();
     win.webContents.once('did-finish-load', () => {
       syncCameraStills();
       if (configError) toast(configError);
@@ -1709,6 +1797,7 @@ if (flag('setup-user') || flag('undo-user-setup')) {
           await loadConfig();
           registerButtons();
           void pushApps();
+          void placeHome();
           toast(configError ?? 'Settings reloaded');
         }, 300);
       });

@@ -1,4 +1,5 @@
 import { BROWSER_IDS, type BrowserChoice } from '../shared/browsers';
+import { SCREEN_NAME } from './screens';
 import { z } from 'zod';
 import { parse as parseToml } from 'smol-toml';
 import { isAllowedWebUrl } from './web-url';
@@ -73,10 +74,11 @@ const ConfigSchema = z
         defaultBrowser: z.enum(['edge']).optional(),
         theme: z.enum(['knowall', 'nodie']).default('knowall'),
         background: z.enum(BACKGROUND_IDS).default(DEFAULT_BACKGROUND),
+        screen: z.string().regex(SCREEN_NAME).default('auto'),
       })
       .strict()
       .transform(({ browser, defaultBrowser, ...ui }) => ({ ...ui, browser: browser ?? defaultBrowser ?? 'default' }))
-      .default({ browser: 'default', theme: 'knowall', background: DEFAULT_BACKGROUND }),
+      .default({ browser: 'default', theme: 'knowall', background: DEFAULT_BACKGROUND, screen: 'auto' }),
     apps: z.array(AppSchema).default([]),
     homeAssistant: z.object({ url: webUrl }).strict().optional(),
     cameras: z.array(z.object({
@@ -163,6 +165,8 @@ export interface UiConfig {
   browser: BrowserChoice;
   theme: Theme;
   background: Background;
+  /** "auto" (the primary screen) or a connector name such as "HDMI-A-1". */
+  screen: string;
 }
 
 export interface Config {
@@ -299,6 +303,9 @@ theme = "knowall"
 # Home background: midnight, corner-glow, horizon-glow, brand-wash, dot-grid, near-black,
 # horizon, ribbons, smoke-left, smoke-right, nebula or planet (Menu → Background).
 background = "midnight"
+# Screen Sofa runs on: "auto" (the primary screen) or a connector name such as "HDMI-A-1"
+# (Menu → Settings → Screen lists them). Unplugged, it falls back to the primary screen.
+screen = "auto"
 
 [[apps]]
 id = "jellyfin"

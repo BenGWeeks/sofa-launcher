@@ -17,8 +17,9 @@ function fixture() {
   const requiresFullscreen = vi.fn(() => false);
   const coverLaunch = vi.fn(async (open: () => Promise<unknown>, lookup: () => Promise<string[]>, fullscreen: boolean) => { await lookup(); expect(fullscreen).toBe(false); return open(); });
   const restoreFullscreen = vi.fn(async () => false);
-  const open = mainFunction('openApp', { pip, apps, wm, requiresFullscreen, restoreFullscreen, launchCoverTimeout: () => 8000, coverLaunch, launcherInFront: () => false, DEMO: false });
-  return { open, pip, apps, wm, target, requiresFullscreen, restoreFullscreen, coverLaunch };
+  const bringToHomeScreen = vi.fn(async () => undefined);
+  const open = mainFunction('openApp', { pip, apps, wm, requiresFullscreen, restoreFullscreen, bringToHomeScreen, launchCoverTimeout: () => 8000, coverLaunch, launcherInFront: () => false, DEMO: false });
+  return { open, pip, apps, wm, target, requiresFullscreen, restoreFullscreen, bringToHomeScreen, coverLaunch };
 }
 describe('main pinned navigation', () => {
   it('gives feedback for the pinned camera tile without reopening or changing the base', async () => {
@@ -35,9 +36,10 @@ describe('main pinned navigation', () => {
   });
   it('retains the cover target lookup and fullscreen flag while rebasing the camera', async () => {
     const f = fixture();
-    const open = mainFunction('openApp', { pip: f.pip, apps: f.apps, wm: f.wm, requiresFullscreen: f.requiresFullscreen, restoreFullscreen: f.restoreFullscreen, launchCoverTimeout: () => 8000, coverLaunch: f.coverLaunch, launcherInFront: () => true, DEMO: false });
+    const open = mainFunction('openApp', { pip: f.pip, apps: f.apps, wm: f.wm, requiresFullscreen: f.requiresFullscreen, restoreFullscreen: f.restoreFullscreen, bringToHomeScreen: f.bringToHomeScreen, launchCoverTimeout: () => 8000, coverLaunch: f.coverLaunch, launcherInFront: () => true, DEMO: false });
     expect(await open('edge')).toEqual({ ok: true });
     expect(f.coverLaunch).toHaveBeenCalledOnce();
+    expect(f.bringToHomeScreen).toHaveBeenCalledWith(f.target);
     expect(f.restoreFullscreen).toHaveBeenCalledWith(f.target, f.wm, expect.any(Function));
     expect(f.requiresFullscreen).toHaveBeenCalledWith(f.target);
     expect(f.pip.opened).toHaveBeenCalledWith({ appId: 'edge', name: 'Edge', windowId: '42' });
