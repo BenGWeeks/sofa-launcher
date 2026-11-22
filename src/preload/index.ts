@@ -32,6 +32,7 @@ const api: SofaApi = {
   openProject: () => ipcRenderer.invoke('launcher:openProject'),
   buttonTest: (active) => ipcRenderer.invoke('launcher:buttonTest', active === true),
   overlayChanged: (open) => ipcRenderer.invoke('launcher:overlay', open),
+  containersView: (open) => ipcRenderer.invoke('launcher:containersView', open),
   guideClosed: () => ipcRenderer.invoke('launcher:guideClosed'),
   panelTalk: () => ipcRenderer.invoke('panel:talk'),
   panelGuide: () => ipcRenderer.invoke('panel:guide'),

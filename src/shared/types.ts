@@ -154,6 +154,8 @@ export interface SofaApi {
   buttonTest(active: boolean): Promise<void>;
   /** Remote guide closed; main returns to the app it was opened over, if any. */
   overlayChanged(open: boolean): Promise<void>;
+  /** The Docker view opened or closed: while open, the coloured buttons filter it. */
+  containersView(open: boolean): Promise<void>;
   guideClosed(): Promise<void>;
   /** Slide-up panel: dismiss and re-activate the window it was opened over. */
   panelDismiss(): Promise<void>;
