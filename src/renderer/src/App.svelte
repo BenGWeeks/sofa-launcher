@@ -267,7 +267,8 @@
       <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onpointermove={() => { if (footerFocus !== index) footerFocus = index; }} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
     {/each}
     <span class="brand">
-      <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true">
+      <!-- Cropped to the artwork (strokes included), so it is exactly as tall as the name and version. -->
+      <svg class="brand-mark" viewBox="74 114 364 300" aria-hidden="true">
         <rect x="88" y="128" width="336" height="228" rx="36" fill="none" stroke="currentColor" stroke-width="28"/>
         <path d="M220 196 L312 242 L220 288 Z" fill="currentColor" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
         <path d="M176 400 H336" stroke="currentColor" stroke-width="28" stroke-linecap="round"/>
@@ -334,9 +335,10 @@
   .hints { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.3rem 4rem; display: flex; align-items: center; gap: 2.4rem;
            font-size: 1.2rem; color: #9aa4b6; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); }
   /* The app's own mark, quiet enough not to compete with the tiles or the footer hints. */
-  .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.55rem; white-space: nowrap; }
-  .brand-mark { width: 1.7rem; height: 1.7rem; color: var(--accent); }
-  .brand-text { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+  .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.6rem; white-space: nowrap; }
+  /* As tall as the name and version together: (1.05rem + 0.8rem) × line-height 1.15. */
+  .brand-mark { height: calc((1.05rem + 0.8rem) * 1.15); width: calc((1.05rem + 0.8rem) * 1.15 * 364 / 300); flex: none; color: var(--accent); }
+  .brand-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
   .brand-name { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.01em; color: #c3cad8; }
   .version { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   .right { margin-left: auto; }
