@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fake = vi.hoisted(() => ({
   destroy: vi.fn(),
+  hide: vi.fn(),
   setIgnoreMouseEvents: vi.fn(),
   loadURL: vi.fn(),
   getNativeWindowHandle: () => Buffer.from([42, 0, 0, 0]),
@@ -28,6 +29,8 @@ describe('optional launch cover window', () => {
     expect(lockDown).toHaveBeenCalledWith(fake);
     expect(setType).toHaveBeenCalledWith('42', 'notification');
     expect(fake.loadURL).not.toHaveBeenCalled();
+    // Mapped by X11 despite show: false, it would black out the screen until the first launch.
+    expect(fake.hide).toHaveBeenCalled();
   });
 
   it.each(['xprop failed', 'xprop timed out'])('discards the cover and allows startup to continue when %s', async message => {

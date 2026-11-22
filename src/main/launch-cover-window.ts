@@ -22,6 +22,9 @@ export async function prepareLaunchCover(
     window.setIgnoreMouseEvents(true);
     // Native notification windows are override-redirect and shrink by a pixel on X11.
     await wm.setType?.(String(window.getNativeWindowHandle().readUInt32LE(0)), 'notification');
+    // Created full screen, X11 can map it despite show: false: a black screen (on a laptop's own
+    // screen when Home is on a TV) until a launch or menu hid it. It is shown only while launching.
+    window.hide();
     // backgroundColor paints the empty window; no renderer document is needed.
     return window;
   } catch (error) {
