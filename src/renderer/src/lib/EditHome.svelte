@@ -78,7 +78,8 @@
   function onkeydown(e: KeyboardEvent) {
     e.stopPropagation();
     e.preventDefault();
-    if (e.key === 'Enter') { if (!e.repeat && focused) void toggle(focused); }
+    // Enter is the remote's OK; Space ticks or unticks too, as on a keyboard's checkbox.
+    if (e.key === 'Enter' || e.key === ' ') { if (!e.repeat && focused) void toggle(focused); }
     else if (BACK_KEYS.has(e.key)) { if (!e.repeat) onclose(); }
     else if (e.key.startsWith('Arrow')) focus = moveSectionFocus(focus, e.key, lengths, COLS);
   }
@@ -99,7 +100,7 @@
   <div class="picker">
     <header>
       <h3>Edit home screen</h3>
-      <p class="help" class:message={!!message} aria-live="polite">{message ?? 'OK shows or hides the selected tile · Back returns to Settings'}</p>
+      <p class="help" class:message={!!message} aria-live="polite">{message ?? 'OK, Space or a click shows or hides a tile · Back returns to Settings'}</p>
     </header>
     <div class="body" bind:this={body}>
       {#each sections as s, si (s.id)}
