@@ -103,6 +103,25 @@ export interface AboutInfo {
   sandboxed: boolean;
 }
 
+/** A screen Sofa can run on (Menu → Settings → Screen). */
+export interface ScreenInfo {
+  /** Connector name ("HDMI-A-1"), the value kept in config.toml. */
+  name: string;
+  width: number;
+  height: number;
+  primary: boolean;
+  /** A laptop's own screen. */
+  builtIn: boolean;
+  /** Sofa is on this screen now. */
+  current: boolean;
+}
+
+export interface ScreenState {
+  /** "auto" (the primary screen) or a connector name, which may be unplugged. */
+  choice: string;
+  screens: ScreenInfo[];
+}
+
 /** The API the preload script exposes to the renderer as window.sofa. */
 export interface SofaApi {
   appearance(): Promise<AppearanceState>;
@@ -110,6 +129,8 @@ export interface SofaApi {
   setBrowser(browser: import('./browsers').BrowserChoice): Promise<void>;
   setTheme(theme: Theme): Promise<void>;
   setBackground(background: Background): Promise<void>;
+  screens(): Promise<ScreenState>;
+  setScreen(screen: string): Promise<void>;
   onAppearance(cb: (state: AppearanceState) => void): () => void;
   listApps(): Promise<TileState[]>;
   openApp(id: string): Promise<{ ok: boolean; message?: string }>;

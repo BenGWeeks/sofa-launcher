@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { followAppearanceState } from './appearance';
   import { DEFAULT_BACKGROUND } from '@shared/backgrounds';
-  import type { Background, Theme } from '@shared/types';
+  import type { Background, ScreenState, Theme } from '@shared/types';
   import { BROWSER_NAMES, type BrowserChoice, type BrowserState } from '@shared/browsers';
   import Menu from './Menu.svelte';
   import BackgroundPicker from './BackgroundPicker.svelte';
@@ -21,6 +21,7 @@
     { id: 'theme', icon: 'M12 3a9 9 0 1 0 9 9c0-2-4-1-4-4s-3-5-5-5z', label: 'Theme', hint: 'KnowAll green / Nodie orange' },
     { id: 'background', icon: 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6', label: 'Background', hint: 'Home screen backdrop' },
     { id: 'browser', icon: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2c-6 6-6 14 0 20 6-6 6-14 0-20z', label: 'Browser', hint: 'Browser for web apps' },
+    { id: 'screen', icon: 'M3 4h18v12H3zM8 20h8M12 16v4', label: 'Screen', hint: 'Which screen Sofa appears on' },
     { id: 'about', icon: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01', label: 'About' },
     { id: 'quit', remoteIcon: 'power', icon: 'M18.4 6.6a9 9 0 1 1-12.8 0M12 2v10', label: 'Quit completely', hint: 'Home won’t bring it back until you restart it' },
     { id: 'edit-home', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7', label: 'Edit home screen', hint: 'Show or hide apps, games and cameras' },
@@ -45,6 +46,43 @@
       browserMenu = false;
       browserError = false;
     } catch { browserError = true; }
+  }
+  let screenMenu = $state(false);
+  /** Counts Settings choices: a screen list that arrives after another choice is ignored. */
+  let choiceCount = 0;
+  let screenError = $state(false);
+  let screens = $state<ScreenState>({ choice: 'auto', screens: [] });
+  const TICK = 'M5 12l4 4L19 6';
+  const screenOptions = $derived.by(() => {
+    const primary = screens.screens.find((s) => s.primary);
+    const options = [
+      { id: 'auto', icon: screens.choice === 'auto' ? TICK : '', selected: screens.choice === 'auto', label: 'Automatic', hint: `The primary screen${primary ? ` (${primary.name})` : ''}` },
+      ...screens.screens.map((s) => ({
+        id: s.name, icon: screens.choice === s.name ? TICK : '', selected: screens.choice === s.name,
+        label: s.builtIn ? 'Built-in screen' : s.name,
+        hint: `${s.builtIn ? `${s.name} · ` : ''}${s.width}×${s.height}${s.current ? ' · Sofa is here' : ''}`,
+      })),
+    ];
+    // A chosen screen that is unplugged stays in the list, so it can be seen and changed.
+    if (screens.choice !== 'auto' && !screens.screens.some((s) => s.name === screens.choice)) {
+      options.push({ id: screens.choice, icon: TICK, selected: true, label: screens.choice, hint: 'Not plugged in: Sofa is on the primary screen' });
+    }
+    return options;
+  });
+  async function openScreens() {
+    const request = choiceCount;
+    try { screens = await window.sofa.screens(); } catch { /* the list stays as it was */ }
+    if (request !== choiceCount) return;
+    screenMenu = true;
+  }
+  /** Closes the whole menu on success: Home has moved, and is in full view on its new screen. */
+  async function chooseScreen(id: string) {
+    try {
+      await window.sofa.setScreen(id);
+      screenError = false;
+      screenMenu = false;
+      onclose();
+    } catch { screenError = true; }
   }
   let themeMenu = $state(false);
   let theme = $state<Theme>('knowall');
@@ -81,8 +119,10 @@
   let returnFocus = $state(0);
 
   function choose(id: string) {
+    choiceCount += 1;
     returnFocus = options.findIndex((o) => o.id === id);
     if (id === 'browser') return (browserMenu = true);
+    if (id === 'screen') return void openScreens();
     if (id === 'theme') return (themeMenu = true);
     if (id === 'background') return (backgroundMenu = true);
     if (id === 'quit') return (confirmQuit = true);
@@ -99,6 +139,8 @@
 
 {#if browserMenu}
   <Menu title={browserError ? 'Couldn’t save browser. Try again?' : 'Browser'} options={browserOptions} initialFocus={Math.max(0, browserOptions.findIndex((o) => o.id === browsers.choice))} onchoose={(id) => void chooseBrowser(id)} onclose={() => { browserMenu = false; browserError = false; }} />
+{:else if screenMenu}
+  <Menu title={screenError ? 'Couldn’t save screen. Try again?' : 'Screen'} options={screenOptions} initialFocus={Math.max(0, screenOptions.findIndex((o) => o.id === screens.choice))} onchoose={(id) => void chooseScreen(id)} onclose={() => { screenMenu = false; screenError = false; }} />
 {:else if themeMenu}
   <Menu title={themeError ? 'Couldn’t save theme. Try again?' : 'Theme'} options={themeOptions} initialFocus={theme === 'nodie' ? 1 : 0} onchoose={(id) => void chooseTheme(id)} onclose={() => { themeMenu = false; themeError = false; }} />
 {:else if backgroundMenu}

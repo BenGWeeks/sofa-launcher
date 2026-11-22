@@ -7,6 +7,7 @@ import { parseConfig } from './config';
 import type { Background, Theme } from '@shared/types';
 import { BROWSER_IDS, type BrowserChoice } from '../shared/browsers';
 import { BACKGROUND_IDS } from '@shared/backgrounds';
+import { SCREEN_NAME } from './screens';
 
 export function validateTheme(value: unknown): Theme {
   if (value !== 'knowall' && value !== 'nodie') throw new Error('Invalid theme');
@@ -19,7 +20,7 @@ export function validateBackground(value: unknown): Background {
 }
 
 /** Preserve comments, spacing and every other key. Refuse unusual TOML we cannot edit safely. */
-function editUiString(source: string, name: 'theme' | 'background' | 'browser', value: string): string {
+function editUiString(source: string, name: 'theme' | 'background' | 'browser' | 'screen', value: string): string {
   parseConfig(source);
   const keyPattern = `(?:${name}|"${name}"|'${name}')`;
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
@@ -154,4 +155,19 @@ export function editBrowser(source: string, value: unknown): string {
 export function writeBrowser(path: string, value: unknown): void {
   validateBrowser(value);
   writeEdited(path, (source) => editBrowser(source, value));
+}
+
+/** "auto" or a connector name: plain characters only, as it is written into the TOML file. */
+export function validateScreen(value: unknown): string {
+  if (typeof value !== 'string' || !SCREEN_NAME.test(value)) throw new Error('Invalid screen');
+  return value;
+}
+
+export function editScreen(source: string, value: unknown): string {
+  return editUiString(source, 'screen', validateScreen(value));
+}
+
+export function writeScreen(path: string, value: unknown): void {
+  validateScreen(value);
+  writeEdited(path, (source) => editScreen(source, value));
 }

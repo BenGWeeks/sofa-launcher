@@ -98,6 +98,21 @@ try:
         state(w,'_NET_WM_STATE_ABOVE',True)
         send(w,'_NET_RESTACK_WINDOW',[2,0,0,0,0])
     elif op=='move': snapshot(w); bounds(w,request['bounds'])
+    elif op=='toscreen':
+        # Onto the given screen, unless its middle is there already; full screen (or maximized) again after.
+        s=snapshot(w); b=request['bounds']; g=s['bounds']
+        cx=g['x']+g['width']//2; cy=g['y']+g['height']//2
+        if not (b['x']<=cx<b['x']+b['width'] and b['y']<=cy<b['y']+b['height']):
+            keep=[key for key in managed[:3] if key in s['states']]
+            for key in managed[:3]: state(w,key,False)
+            deadline=time.monotonic()+2
+            while any(name(a) in managed[:3] for a in prop(w,'_NET_WM_STATE') or []):
+                if time.monotonic()>deadline: raise RuntimeError('App refused to leave fullscreen')
+                time.sleep(.025)
+            width=min(g['width'],b['width']); height=min(g['height'],b['height'])
+            bounds(w,dict(x=b['x']+(b['width']-width)//2,y=b['y']+(b['height']-height)//2,width=width,height=height))
+            x.XSync(d,0); time.sleep(.1)
+            for key in keep: state(w,key,True)
     elif op=='restore':
         snapshot(w); saved=request['snapshot']
         for key in managed: state(w,key,False)
@@ -142,6 +157,8 @@ export class X11PipWindows implements PipWindows {
   }
   keepAbove(id: string): Promise<void> { return this.run(id, 'raise'); }
   restore(snapshot: WindowSnapshot): Promise<void> { return this.run(snapshot.id, 'restore', { snapshot, ownerPid: snapshot.ownerPid }); }
+  /** Move a window onto the screen with these (physical) bounds, keeping it full screen. No-op if it is there. */
+  toScreen(id: string, bounds: Bounds): Promise<void> { return this.run(id, 'toscreen', { bounds }); }
   move(snapshot: WindowSnapshot, bounds: Bounds): Promise<void> { return this.run(snapshot.id, 'move', { bounds, ownerPid: snapshot.ownerPid }); }
   async activate(snapshot: WindowSnapshot): Promise<void> {
     if ((await this.snapshot(snapshot.id)).ownerPid !== snapshot.ownerPid) throw new Error('App window was replaced');

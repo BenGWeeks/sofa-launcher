@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync, statSync, readdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { editBackground, editTheme, writeBackground, writeTheme, editBrowser, writeBrowser } from '../src/main/config-writer';
+import { editBackground, editTheme, writeBackground, writeTheme, editBrowser, writeBrowser, editScreen } from '../src/main/config-writer';
 import { parseConfig } from '../src/main/config';
 
 const directories: string[] = [];
@@ -26,7 +26,7 @@ describe('theme-only config edits', () => {
     const source = '# apps\n[[apps]]\nid="x"\ncatalogue="netflix"\n';
     const result = editTheme(source, 'nodie');
     expect(result.startsWith(source)).toBe(true);
-    expect(parseConfig(result)).toEqual({ ...parseConfig(source), ui: { browser: 'default', theme: 'nodie', background: 'midnight' } });
+    expect(parseConfig(result)).toEqual({ ...parseConfig(source), ui: { browser: 'default', theme: 'nodie', background: 'midnight', screen: 'auto' } });
   });
   it('edits the background without touching the theme or comments', () => {
     const source = '[ui]\ntheme = "nodie" # keep\nbackground = "midnight"\n[buttons]\n';
@@ -102,4 +102,17 @@ describe('browser config edits', () => {
     expect(readFileSync(path, 'utf8')).toBe('# keep\n[ui]\nbrowser="vivaldi" # choice\n');
     expect(statSync(path).mode & 0o777).toBe(0o600);
   });
+});
+
+describe('screen config edits', () => {
+  it('sets the screen, keeps comments and other keys, and refuses unsafe names', () => {
+    const source = '[ui] # keep\ntheme = "nodie"\n';
+    const edited = editScreen(source, 'HDMI-A-1');
+    expect(edited).toBe('[ui] # keep\nscreen = "HDMI-A-1"\ntheme = "nodie"\n');
+    expect(parseConfig(edited).ui).toMatchObject({ screen: 'HDMI-A-1', theme: 'nodie' });
+    expect(parseConfig(editScreen(edited, 'auto')).ui.screen).toBe('auto');
+    expect(() => editScreen(source, 'HDMI"\nx = 1')).toThrow('Invalid screen');
+    expect(() => editScreen(source, '')).toThrow('Invalid screen');
+  });
+  it('defaults to "auto"', () => expect(parseConfig('').ui.screen).toBe('auto'));
 });
