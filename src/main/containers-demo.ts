@@ -157,6 +157,8 @@ export function demoStatusEntries(): unknown[] {
     Service: service,
     ...(DESCRIPTIONS[service] ? { Description: DESCRIPTIONS[service] } : {}),
     ...(state === 'running' ? { Update: demoUpdate(name, image) } : {}),
+    // Opted in to updates from the launcher (sofa.update): running services, not databases.
+    ...(state === 'running' && !/db|postgres|redis|mariadb/.test(service) ? { Updatable: true } : {}),
     ...(state === 'running' || state === 'paused' ? { Cpu: demoLoad(name).cpu, Mem: demoLoad(name).mem } : {}),
   })).sort((a, b) => a.Names[0]!.localeCompare(b.Names[0]!));
 }

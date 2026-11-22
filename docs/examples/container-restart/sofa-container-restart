@@ -1,14 +1,23 @@
 #!/bin/bash
-# Restart ONE named, running container for Sofa Launcher, and nothing else.
+# Restart, or update, ONE named, running container for Sofa Launcher, and nothing else.
 #
-# Started by systemd for each connection to sofa-container-restart.socket, with the connection
-# as stdin and stdout. Who may connect is set by that socket's group (SocketGroup=), so this
-# script never decides who is asking: only what they may ask for.
+# Started by systemd for each connection to a socket, with the connection as stdin and stdout.
+# Each socket allows one request, given as this script's argument:
+#   sofa-container-restart.socket (group sofa-docker):  restart   (the default)
+#   sofa-container-update.socket  (group sofa-update):  update
+# Who may connect is set by that socket's group (SocketGroup=), so this script never decides
+# who is asking: only what they may ask for.
 #
-# Request: one line, "restart <container name>".  Reply: one line, "ok" or "error <reason>".
+# Request: one line, "<restart|update> <container name>".  Reply: one line, "ok", "ok <what
+# happened>" or "error <reason>".
 #
-# Refused: a container that is not running (this never starts something that was stopped), and
-# one whose compose file sets the label  sofa.restart  to "false" (or no / off / 0).
+# restart: refused for a container that is not running (this never starts something that was
+# stopped), and one whose compose file sets the label  sofa.restart  to "false" (or no / off / 0).
+#
+# update: pulls the image of ONE compose service and recreates that service's container with it
+# (docker compose pull, then up -d --no-deps --no-build), using the compose files the container
+# was started from. Opt-in: refused unless the compose file sets the label  sofa.update  to
+# "true" (or yes / on / 1); refused for a container that is not running or not from compose.
 set -uo pipefail
 # The C locale, so [A-Za-z0-9] means exactly those characters.
 export LC_ALL=C
@@ -16,9 +25,56 @@ note() { logger -t sofa-container-restart "$1 (connection ${SOFA_PEER:-unknown})
 reply() { printf '%s\n' "$1"; exit 0; }
 refuse() { note "refused: $1"; reply "error $1"; }
 
+allowed=${1:-restart}
+[[ $allowed == restart || $allowed == update ]] || refuse 'this service is set up wrongly'
+
 IFS= read -r -t 5 -n 200 line || refuse 'bad request'
-[[ $line =~ ^restart\ ([A-Za-z0-9][A-Za-z0-9_.-]{0,127})$ ]] || refuse 'bad request'
-name=${BASH_REMATCH[1]}
+[[ $line =~ ^(restart|update)\ ([A-Za-z0-9][A-Za-z0-9_.-]{0,127})$ ]] || refuse 'bad request'
+verb=${BASH_REMATCH[1]}
+name=${BASH_REMATCH[2]}
+# The other socket's request is not this socket's to grant.
+[[ $verb == "$allowed" ]] || refuse 'bad request'
+
+if [[ $verb == update ]]; then
+  # One inspect: the checks and the update are about this one container.
+  labels='{{index .Config.Labels "sofa.update"}}|{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}|{{index .Config.Labels "com.docker.compose.project.working_dir"}}|{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+  found=$(timeout 15 docker inspect --type container \
+    --format "{{.Id}}|{{.Name}}|{{.State.Running}}|{{.Image}}|$labels" -- "$name" 2>/dev/null) ||
+    refuse 'there is no such container'
+  IFS='|' read -r id actual running image label project service workdir files <<<"$found"
+  [[ $actual == "/$name" && $id =~ ^[0-9a-f]{64}$ ]] || refuse 'there is no such container'
+  label=${label,,}; label=${label//[[:space:]]/}
+  case $label in true|yes|on|1) ;; *) refuse 'this container is not set up for updates (sofa.update)' ;; esac
+  [[ $running == true ]] || refuse 'this container is not running'
+  [[ $project =~ ^[a-z0-9][a-z0-9_-]{0,63}$ && $service =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]] ||
+    refuse 'this container was not started by docker compose'
+  [[ $workdir == /* && -d $workdir ]] || refuse 'its compose project folder cannot be read'
+  compose=(compose --project-name "$project" --project-directory "$workdir")
+  IFS=',' read -ra list <<<"$files"
+  (( ${#list[@]} )) || refuse 'its compose file cannot be read'
+  for f in "${list[@]}"; do
+    [[ $f == /* && -f $f && -r $f ]] || refuse 'its compose file cannot be read'
+    compose+=(-f "$f")
+  done
+
+  note "updating $name ($project/$service)"
+  timeout 900 docker "${compose[@]}" pull --quiet -- "$service" >/dev/null 2>&1
+  case $? in
+    0) ;;
+    124) note "pull for $name timed out"; reply 'error downloading the new image is taking too long: try again later' ;;
+    *) note "pull for $name failed"; reply 'error the new image could not be downloaded' ;;
+  esac
+  # --no-deps: only this service. --no-build: a pull is all this may do, never a build.
+  timeout 300 docker "${compose[@]}" up -d --no-deps --no-build -- "$service" >/dev/null 2>&1
+  case $? in
+    0) ;;
+    124) note "recreating $name timed out"; reply 'error Docker is taking a long time: it may still be starting' ;;
+    *) note "recreating $name failed"; reply 'error Docker could not start it with the new image' ;;
+  esac
+  now=$(timeout 15 docker inspect --type container --format '{{.Image}}' -- "$name" 2>/dev/null) || now=''
+  if [[ $now == "$image" ]]; then note "$name was already up to date"; reply 'ok already up to date'; fi
+  note "updated $name"; reply 'ok updated to the newer image'
+fi
 
 # The name must be a container that exists, addressed by its name (not an id prefix). The
 # restart below uses the id found here, so the checks and the restart are about one container.

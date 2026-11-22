@@ -11,7 +11,9 @@
 # Update. Without that file nothing is added.
 #
 # A service labelled  sofa.restart: "false"  (and any container that is not running) is published as not restartable (see
-# container-restart/, which refuses it whatever this file says).
+# container-restart/, which refuses it whatever this file says). A compose service labelled
+#  sofa.update: "true"  is published as Updatable: the launcher may then offer to update it
+# (container-restart/'s update socket, which checks the label itself).
 #
 # Description: the compose label `sofa.description` if a service sets one, otherwise the
 # image's own `org.opencontainers.image.description` label, otherwise empty.
@@ -48,7 +50,7 @@ while :; do
   n=$((n + 1))
   [ -s "$updates" ] && jq -e 'type == "object"' "$updates" >/dev/null 2>&1 && upd=$updates || upd=/dev/null
   tmp=$(mktemp "$out.XXXXXX")
-  fmt='{"c":{{json .}},"p":{{json (.Label "com.docker.compose.project")}},"s":{{json (.Label "com.docker.compose.service")}},"d":{{json (.Label "sofa.description")}},"i":{{json (.Label "org.opencontainers.image.description")}},"r":{{json (.Label "sofa.restart")}}}'
+  fmt='{"c":{{json .}},"p":{{json (.Label "com.docker.compose.project")}},"s":{{json (.Label "com.docker.compose.service")}},"d":{{json (.Label "sofa.description")}},"i":{{json (.Label "org.opencontainers.image.description")}},"r":{{json (.Label "sofa.restart")}},"u":{{json (.Label "sofa.update")}}}'
   # Health is also in the Status text ("Up 2 hours (healthy)"), which the launcher reads when
   # this docker version has no HealthStatus field.
   if timeout 30 docker ps -a --no-trunc --format "$fmt" |
@@ -62,6 +64,8 @@ while :; do
              + (if $c.State == "running" and $u.cpu != null then {Cpu: $u.cpu} else {} end)
              + (if $c.State == "running" and $u.mem != null then {Mem: $u.mem} else {} end)
              + (if $updates[$c.Names] then {Update: ($updates[$c.Names] | {Available, Current, Latest, Kind, Checked})} else {} end)
+             # Updatable: the compose file opts in with  sofa.update: "true"  (the update service checks it too).
+             + (if (.u | ascii_downcase | gsub("\\s"; "") | IN("true", "yes", "on", "1")) and .p != "" and .s != "" then {Updatable: true} else {} end)
              + (if (.r | ascii_downcase | gsub("\\s"; "") | IN("false", "no", "off", "0")) or $c.State != "running" then {Restartable: false} else {} end)]
        | sort_by(.Names[0])' >"$tmp"; then
     chmod 644 "$tmp"; mv -f "$tmp" "$out"; tmp=''

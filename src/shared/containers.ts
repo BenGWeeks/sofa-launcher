@@ -32,6 +32,8 @@ export interface ContainerInfo {
   mem: number | null;
   /** False when the status file marks the container as not to be restarted from the launcher. */
   restartable: boolean;
+  /** True when its compose file opts in to updates from the launcher (sofa.update: "true"). */
+  updatable: boolean;
   /** What a registry check found about a newer image; null when the file has no check for it. */
   update: ContainerUpdate | null;
 }
@@ -87,6 +89,8 @@ export interface ContainersSnapshot {
   skipped: number;
   /** This account may restart containers: a restart service is set up and lets this user in. */
   canRestart: boolean;
+  /** This account may update containers: an update service is set up and lets this user in. */
+  canUpdate: boolean;
 }
 
 export interface RestartResult { ok: boolean; message: string }
@@ -101,6 +105,8 @@ export interface ContainersApi {
   history(name: string): Promise<ContainerHistorySeries | null>;
   /** Ask the restart service to restart one container. Refused unless `canRestart`. */
   restart(name: string): Promise<RestartResult>;
+  /** Ask the update service to update one container to its newer image. Refused unless `canUpdate`. */
+  update(name: string): Promise<RestartResult>;
 }
 
 export const MAX_ENTRIES = 500;
@@ -240,6 +246,7 @@ export function parseEntry(raw: unknown): ContainerInfo | null {
     cpu: amount(r.Cpu, 100_000),
     mem: amount(r.Mem, 2 ** 50),
     restartable: r.Restartable !== false,
+    updatable: r.Updatable === true,
     update: parseUpdate(r.Update),
   };
 }

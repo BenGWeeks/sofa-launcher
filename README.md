@@ -456,6 +456,53 @@ containers, so keep shared logins out of the group.
 
 ![Asking before a restart](docs/screenshots/containers-restart.png)
 
+**Updating a container (optional, opt-in, for chosen accounts only).** The same service
+script can also update a container to its newer image, through a **separate socket and
+group**: restarting re-runs code that is already there, while an update runs new code from
+the image's publisher, so who may update is decided separately (`sofa-update`, not
+`sofa-docker`).
+
+- **Which containers:** only compose services whose compose file opts in with the label
+  `sofa.update: "true"`, and only while they are running. Leave databases out unless you
+  want them updated from the sofa. The status writer publishes `Updatable` from the label,
+  and the service checks the label itself.
+- **What it does:** `docker compose pull <service>`, then `docker compose up -d --no-deps
+  --no-build <service>`, with the project's own compose files (from the container's compose
+  labels): one service, never a build, nothing else in the stack. It answers *updated to
+  the newer image*, *already up to date*, or why it could not.
+- **In the launcher:** when the details show **Update → Available** for an opted-in container
+  and this account may update, **Update** appears beside **Restart**. The confirmation names
+  the image and the change (`2.18.4 → 2.18.5`, or the image digests for a floating tag such as
+  `valkey/valkey:9`) and starts on **Cancel**.
+
+```yaml
+services:
+  sonarr:
+    labels:
+      sofa.update: "true"
+```
+
+```bash
+sudo groupadd --system sofa-update
+sudo gpasswd -a tvuser sofa-update          # each account that may update; log out and in again
+sudo install -m 755 docs/examples/container-restart/sofa-container-restart /usr/local/sbin/
+sudo install -m 644 docs/examples/container-restart/sofa-container-update.socket \
+                    docs/examples/container-restart/sofa-container-update@.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now sofa-container-update.socket
+```
+
+The service's account (`User=`, in the `docker` group) must be able to read those stacks'
+compose files and `.env`. Then:
+
+```toml
+[containers]
+update_socket = "/run/sofa-container-update.sock"
+```
+
+The launcher offers **Update** only to an account that can open that socket: the system
+decides, not the launcher. Anyone holding the remote in a session of such an account can
+update the opted-in containers, so keep shared logins out of `sofa-update`.
+
 Stacks whose names share a first word with another stack are shown together
 (`t3-stack`, `t3-host-relay` → **t3**); containers without a stack go under
 **Other**. Inside a stack, cards drop the stack's prefix (`nextcloud-db` → `db`).
