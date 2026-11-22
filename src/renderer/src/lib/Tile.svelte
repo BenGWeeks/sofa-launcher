@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { realMove } from './nav';
   import type { TileState } from '@shared/types';
   import nodieImg from '../assets/nodie.jpg';
   import audibleLogo from '../assets/audible.png';
@@ -42,7 +43,7 @@
   const wordmark = $derived(app.brand ? wordmarks[app.brand] : undefined);
 </script>
 
-<svelte:element this={bare ? 'span' : 'button'} class="slot" class:bare class:focused class:missing={!app.installed} {onclick} onpointermove={bare ? undefined : onhover} tabindex={bare ? undefined : -1} aria-hidden={bare ? 'true' : undefined}>
+<svelte:element this={bare ? 'span' : 'button'} class="slot" class:bare class:focused class:missing={!app.installed} {onclick} onpointermove={bare ? undefined : (e: PointerEvent) => { if (realMove(e)) onhover?.(); }} tabindex={bare ? undefined : -1} aria-hidden={bare ? 'true' : undefined}>
   <div class="tile brand-{app.brand ?? 'generic'}" style:--hue={app.brand === 'game' ? hue : undefined}>
     {#if !bare}
       {#if index < 9}<span class="n">{index + 1}</span>{/if}
