@@ -77,7 +77,22 @@ app.whenReady().then(async () => {
     await new Promise(r => setTimeout(r, 300));
     assert.equal(await evaluate('location.pathname'), '/browse', 'Back with history must go back in the app');
     assert.equal((await evaluate('document.title')).includes('[sofa:home]'), false);
-    console.log('Browser remote: cards, row movement, OK, removed focus, native text editing, form navigation, modal scope, Fountain, player pass-through and Back-to-home passed');
+    // YouTube TV: Back (Escape) in the player goes back in YouTube's history; elsewhere it is YouTube's own.
+    const youtube = readFileSync(join(__dirname, '../resources/browser-remote/youtube-tv-back.js'), 'utf8');
+    await win.loadURL('https://www.youtube.com/tv#/browse');
+    await evaluate(youtube);
+    await evaluate("window.escapes = 0; window.addEventListener('keydown', e => { if (e.key === 'Escape') window.escapes++; })");
+    await new Promise(r => setTimeout(r, 300)); // let the freshly loaded page take input
+    await key('Escape');
+    assert.equal(await evaluate('location.hash'), '#/browse', 'Outside the player, Escape is left to YouTube');
+    assert.equal(await evaluate('window.escapes'), 1);
+    await evaluate("location.hash = '#/watch?v=abc'");
+    await new Promise(r => setTimeout(r, 100));
+    await key('Escape');
+    await new Promise(r => setTimeout(r, 300));
+    assert.equal(await evaluate('location.hash'), '#/browse', 'Back in the player must leave the video');
+    assert.equal(await evaluate('window.escapes'), 1, 'YouTube must not also see that Escape (it would show the controls)');
+    console.log('Browser remote: cards, row movement, OK, removed focus, native text editing, form navigation, modal scope, Fountain, player pass-through, Back-to-home and YouTube Back from a video passed');
     app.exit(0);
   } catch (error) { console.error(error); app.exit(1); }
 }).finally(() => rmSync(profile, { recursive: true, force: true }));
