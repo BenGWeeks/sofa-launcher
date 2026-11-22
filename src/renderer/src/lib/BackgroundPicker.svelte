@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CloseButton from './CloseButton.svelte';
   import { untrack } from 'svelte';
   import { BACKGROUNDS } from '@shared/backgrounds';
   import type { Background } from '@shared/types';
@@ -29,6 +30,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="dim" role="dialog" aria-modal="true" aria-label="Background" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}>
   <div class="picker">
+    <CloseButton onclick={onclose} />
     <h3>{error ? 'Couldn’t save background. Try again?' : 'Background'}</h3>
     <div class="grid" style:--cols={COLS}>
       {#each BACKGROUNDS as b, i (b.id)}
@@ -46,7 +48,7 @@
 <style>
   .dim { position: fixed; inset: 0; background: rgba(3, 4, 6, 0.72); backdrop-filter: blur(0.3rem);
          display: flex; align-items: center; justify-content: center; z-index: 10; }
-  .picker { border-radius: 1.6rem; padding: 2.2rem 2.4rem 2.4rem; background: #141922;
+  .picker { position: relative; border-radius: 1.6rem; padding: 2.2rem 2.4rem 2.4rem; background: #141922;
             box-shadow: 0 0 0 1px #262e3c, 0 2rem 5rem rgba(0, 0, 0, 0.7); }
   h3 { margin: 0 0 1.6rem; font-size: 2rem; text-align: center; }
   .grid { display: grid; grid-template-columns: repeat(var(--cols), 13rem); gap: 1.4rem 1.6rem; }
