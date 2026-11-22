@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HOME_REQUEST_MARKER, homeRequestWatcher } from '../src/main/home-request';
+import { BACKSPACE_REQUEST_MARKER, HOME_REQUEST_MARKER, homeRequestWatcher } from '../src/main/home-request';
 
 const noSleep = () => Promise.resolve();
 
@@ -7,16 +7,16 @@ describe('homeRequestWatcher', () => {
   it('reports a home request as soon as the title carries the marker', async () => {
     const titles = ['YouTube on TV', `${HOME_REQUEST_MARKER} YouTube on TV`, 'never read'];
     const title = vi.fn(async () => titles.shift() ?? '');
-    await expect(homeRequestWatcher({ title, sleep: noSleep })('7')).resolves.toBe(true);
+    await expect(homeRequestWatcher({ title, sleep: noSleep })('7')).resolves.toBe('home');
     expect(title).toHaveBeenCalledTimes(2);
     expect(title).toHaveBeenCalledWith('7');
   });
 
   it('gives up quietly when the app went back by itself or its window is gone', async () => {
     const title = vi.fn(async () => 'Netflix');
-    await expect(homeRequestWatcher({ title, sleep: noSleep, attempts: 3 })('7')).resolves.toBe(false);
+    await expect(homeRequestWatcher({ title, sleep: noSleep, attempts: 3 })('7')).resolves.toBe(null);
     expect(title).toHaveBeenCalledTimes(3);
-    await expect(homeRequestWatcher({ title: () => Promise.reject(new Error('gone')), sleep: noSleep, attempts: 2 })('7')).resolves.toBe(false);
+    await expect(homeRequestWatcher({ title: () => Promise.reject(new Error('gone')), sleep: noSleep, attempts: 2 })('7')).resolves.toBe(null);
   });
 
   it('lets a newer Back press replace an older watch', async () => {
@@ -27,7 +27,12 @@ describe('homeRequestWatcher', () => {
     const older = watch('1');
     const newer = watch('1');
     release();
-    await expect(older).resolves.toBe(false);
-    await expect(newer).resolves.toBe(true);
+    await expect(older).resolves.toBe(null);
+    await expect(newer).resolves.toBe('home');
+  });
+
+  it('reports YouTube’s request for a real Backspace', async () => {
+    const titles = ['YouTube on TV', `${BACKSPACE_REQUEST_MARKER} YouTube on TV`];
+    await expect(homeRequestWatcher({ title: async () => titles.shift() ?? '', sleep: noSleep })('7')).resolves.toBe('backspace');
   });
 });

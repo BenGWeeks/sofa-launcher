@@ -77,22 +77,24 @@ app.whenReady().then(async () => {
     await new Promise(r => setTimeout(r, 300));
     assert.equal(await evaluate('location.pathname'), '/browse', 'Back with history must go back in the app');
     assert.equal((await evaluate('document.title')).includes('[sofa:home]'), false);
-    // YouTube TV: Back (Escape) in the player goes back in YouTube's history; elsewhere it is YouTube's own.
+    // YouTube TV: outside the player Escape is YouTube's; in the player (a video filling the window)
+    // it is kept from YouTube and the title asks Sofa for a real Backspace.
     const youtube = readFileSync(join(__dirname, '../resources/browser-remote/youtube-tv-back.js'), 'utf8');
-    await win.loadURL('https://www.youtube.com/tv#/browse');
+    await win.loadURL('https://www.youtube.com/tv#/');
     await evaluate(youtube);
-    await evaluate("window.escapes = 0; window.addEventListener('keydown', e => { if (e.key === 'Escape') window.escapes++; })");
+    await evaluate("document.title = 'YouTube on TV'; window.escapes = 0; window.addEventListener('keydown', e => { if (e.key === 'Escape') window.escapes++; })");
     await new Promise(r => setTimeout(r, 300)); // let the freshly loaded page take input
     await key('Escape');
-    assert.equal(await evaluate('location.hash'), '#/browse', 'Outside the player, Escape is left to YouTube');
-    assert.equal(await evaluate('window.escapes'), 1);
-    await evaluate("location.hash = '#/watch?v=abc'");
-    await new Promise(r => setTimeout(r, 100));
+    assert.equal(await evaluate('window.escapes'), 1, 'Outside the player, Escape is left to YouTube');
+    assert.equal(await evaluate('document.title'), 'YouTube on TV');
+    // A stand-in player: a video element filling the window, with a frame ready.
+    await evaluate("const v = document.createElement('video'); v.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh'; Object.defineProperty(v, 'readyState', { get: () => 4 }); document.body.append(v); 1");
     await key('Escape');
-    await new Promise(r => setTimeout(r, 300));
-    assert.equal(await evaluate('location.hash'), '#/browse', 'Back in the player must leave the video');
-    assert.equal(await evaluate('window.escapes'), 1, 'YouTube must not also see that Escape (it would show the controls)');
-    console.log('Browser remote: cards, row movement, OK, removed focus, native text editing, form navigation, modal scope, Fountain, player pass-through, Back-to-home and YouTube Back from a video passed');
+    assert.equal(await evaluate('window.escapes'), 1, 'YouTube must not see Escape in its player (it would only show the controls)');
+    assert.equal(await evaluate('document.title'), '[sofa:backspace] YouTube on TV', 'The player must ask Sofa for a real Backspace');
+    await new Promise(r => setTimeout(r, 1700));
+    assert.equal(await evaluate('document.title'), 'YouTube on TV', 'The request must clear itself');
+    console.log('Browser remote: cards, row movement, OK, removed focus, native text editing, form navigation, modal scope, Fountain, player pass-through, Back-to-home and YouTube Back in the player passed');
     app.exit(0);
   } catch (error) { console.error(error); app.exit(1); }
 }).finally(() => rmSync(profile, { recursive: true, force: true }));
