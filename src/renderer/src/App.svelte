@@ -266,7 +266,8 @@
     {#each footerButtons as button, index}
       <button class="footer-button" class:right={button.action === 'power'} class:focused={footerFocus === index} onpointermove={() => { if (footerFocus !== index) footerFocus = index; }} onclick={() => { footerFocus = index; if (button.action === 'cameraToggle') void window.sofa.pipShow(); else void window.sofa.activateAction(button.action); }}><span class="k"><RemoteIcon name={button.icon} /></span>{button.label}</button>
     {/each}
-    <span class="brand">
+    <!-- For a mouse: the brand opens About (the remote reaches it through Settings). -->
+    <button class="brand" tabindex="-1" aria-label="About Sofa Launcher" onclick={() => (screen = 'about')}>
       <!-- Cropped to the artwork (strokes included), so it is exactly as tall as the name and version. -->
       <svg class="brand-mark" viewBox="74 114 364 300" aria-hidden="true">
         <rect x="88" y="128" width="336" height="228" rx="36" fill="none" stroke="currentColor" stroke-width="28"/>
@@ -277,7 +278,7 @@
         <span class="brand-name">Sofa Launcher</span>
         <span class="version">v{version}</span>
       </span>
-    </span>
+    </button>
   </footer>
 </main>
 
@@ -335,7 +336,9 @@
   .hints { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.3rem 4rem; display: flex; align-items: center; gap: 2.4rem;
            font-size: 1.2rem; color: #9aa4b6; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); }
   /* The app's own mark, quiet enough not to compete with the tiles or the footer hints. */
-  .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.6rem; white-space: nowrap; }
+  .brand { align-self: center; display: inline-flex; align-items: center; gap: 0.6rem; white-space: nowrap;
+           border: 0; padding: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .brand:hover .brand-name { color: #fff; } .brand:hover .version { color: #c3cad8; }
   /* As tall as the name and version together: (1.05rem + 0.8rem) × line-height 1.15. */
   .brand-mark { height: calc((1.05rem + 0.8rem) * 1.15); width: calc((1.05rem + 0.8rem) * 1.15 * 364 / 300); flex: none; color: var(--accent); }
   .brand-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
