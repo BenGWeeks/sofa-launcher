@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CloseButton from './CloseButton.svelte';
   import { onMount } from 'svelte';
   import type { AboutInfo } from '@shared/types';
   import { BACK_KEYS } from './nav';
@@ -37,6 +38,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="dim" role="dialog" aria-modal="true" aria-label="About" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}>
   <div class="card">
+    <CloseButton onclick={onclose} />
     <h3>Sofa Launcher</h3>
     {#if info}
       <dl>
@@ -74,7 +76,7 @@
 <style>
   .dim { position: fixed; inset: 0; background: rgba(3, 4, 6, 0.72); backdrop-filter: blur(0.3rem);
          display: flex; align-items: center; justify-content: center; z-index: 10; }
-  .card { width: 63rem; border-radius: 1.6rem; padding: 2.4rem 2.8rem; background: #141922;
+  .card { position: relative; width: 63rem; border-radius: 1.6rem; padding: 2.4rem 2.8rem; background: #141922;
           box-shadow: 0 0 0 1px #262e3c, 0 2rem 5rem rgba(0, 0, 0, 0.7); }
   h3 { margin: 0 0 1.4rem; font-size: 2rem; text-align: center; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: 0.8rem 1.6rem; margin: 0; font-size: 1.35rem; }

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import {
-    countParts, displayImage, groupContainers, iconFor, monogram, OTHER_GROUP, packGroups, shortName,
-    type ContainerColour, type ContainerHistorySeries, type ContainerInfo, type ContainersSnapshot,
+    countParts, displayImage, FILTER_FOR_COLOUR, FILTER_LABELS, groupContainers, iconFor, matchesFilter, monogram, OTHER_GROUP, packGroups, shortName,
+    type ContainerColour, type ContainerFilter, type ContainerHistorySeries, type ContainerInfo, type ContainersSnapshot,
   } from '@shared/containers';
   import StatusGlyph from './StatusGlyph.svelte';
   import { BACK_KEYS } from './nav';
@@ -143,7 +143,16 @@
   const cpu = $derived(trace('cpu'));
   const mem = $derived(trace('mem'));
 
-  const groups = $derived(groupContainers(snap?.containers ?? []));
+  /** Red, green, yellow or blue on the remote (or a click on a count): only those cards. The same again: all. */
+  let filter = $state<ContainerFilter | null>(null);
+  function toggleFilter(f: ContainerFilter) {
+    if (working) return;
+    filter = filter === f ? null : f;
+    focus = 0;
+    openDetail(null);
+  }
+  const shown = $derived(filter ? (snap?.containers ?? []).filter((c) => matchesFilter(c, filter!)) : snap?.containers ?? []);
+  const groups = $derived(groupContainers(shown));
   const rows = $derived(packGroups(groups, COLS));
   /** Cards in display order (focus indexes into this), with each group's first index. */
   const cards = $derived(rows.flat().flatMap((g) => g.containers));
@@ -226,13 +235,21 @@
     e.preventDefault();
   }
 
+  // Fewer cards after a refresh or a filter: keep the highlight on one that exists.
+  $effect(() => { if (focus >= cards.length && cards.length) focus = cards.length - 1; });
+
   onMount(() => {
     document.documentElement.classList.add('containers-open');
+    void window.sofa.containersView(true);
+    const onFilter = (e: Event) => toggleFilter((e as CustomEvent<ContainerFilter>).detail);
+    window.addEventListener('sofa-containers-filter', onFilter);
     void refresh(true);
     const poll = setInterval(() => void refresh(), REFRESH_MS);
     const ticker = setInterval(() => (now = Date.now()), 1000);
     return () => {
       clearInterval(poll); clearInterval(ticker);
+      window.removeEventListener('sofa-containers-filter', onFilter);
+      void window.sofa.containersView(false);
       document.documentElement.classList.remove('containers-open');
     };
   });
@@ -263,8 +280,9 @@
     <div class="title">
       <h1>Containers</h1>
       <p class="counts">
-        {#each counts as part, i}{#if i}<span class="sep">·</span>{/if}<span class="count {part.colour}"><StatusGlyph colour={part.colour} />{part.text}</span>{/each}
-        {#if updates}<span class="sep">·</span><span class="count newer">{@render arrow()}{updates} {updates === 1 ? 'update' : 'updates'}</span>{/if}
+        <!-- Each count is also a filter (the remote's coloured buttons do the same). -->
+        {#each counts as part, i}{#if i}<span class="sep">·</span>{/if}<button class="count {part.colour}" class:on={filter === FILTER_FOR_COLOUR[part.colour]} class:off={!!filter && filter !== FILTER_FOR_COLOUR[part.colour]} tabindex="-1" onclick={() => toggleFilter(FILTER_FOR_COLOUR[part.colour])}><StatusGlyph colour={part.colour} />{part.text}</button>{/each}
+        {#if updates}<span class="sep">·</span><button class="count newer" class:on={filter === 'updates'} class:off={!!filter && filter !== 'updates'} tabindex="-1" onclick={() => toggleFilter('updates')}>{@render arrow()}{updates} {updates === 1 ? 'update' : 'updates'}</button>{/if}
       </p>
     </div>
     <div class="updated">
@@ -287,6 +305,8 @@
       <p class="message">Reading container status…</p>
     {:else if !snap.configured}
       <p class="message">Docker isn’t set up. Add a <code>[containers]</code> status file to <code>config.toml</code>.</p>
+    {:else if !cards.length && filter}
+      <p class="message">No containers match <b>{FILTER_LABELS[filter]}</b>. Press the same colour again, or click it above, to show all.</p>
     {:else if !cards.length}
       <p class="message">{snap.error ? 'No container status yet.' : 'The status file lists no containers.'}</p>
     {:else}
@@ -318,9 +338,11 @@
     {/if}
   </div>
 
-  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
+  <footer><span class="k">↕↔</span>Move<span class="k">OK</span>Details<span class="k colours" aria-hidden="true"><i class="red"></i><i class="green"></i><i class="yellow"></i><i class="blue"></i></span>{filter ? `${FILTER_LABELS[filter]} only` : 'Filter'}<button class="hint" onclick={back}><span class="k"><RemoteIcon name="back" /></span>Back</button></footer>
 
   {#if detail}
+    <!-- For a mouse: a click anywhere left of the details closes them, as Back does. -->
+    <button class="shade" tabindex="-1" aria-label="Close details" onclick={back}></button>
     <aside class="detail {detail.colour}" aria-label="{detail.name} details">
       <div class="head">{@render icon(detail, detail.name, true)}<h3>{detail.name}</h3></div>
       {@render badge(detail.colour, detail.word)}
@@ -336,7 +358,12 @@
           <dd>
             {#if u.available}
               <span class="newer inline">{@render arrow()}Available</span>
-              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<span class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</span>{:else if u.kind === 'floating'}<span class="quiet">a newer image for this tag</span>{/if}
+              <!-- Each on its own smaller line under Available: the versions, or for a floating tag the tag and image digests. -->
+              {#if u.kind === 'pinned' && u.latest && u.latest !== u.current}<small class="mono-text versions">{short(u.current) || '?'} → {short(u.latest)}</small>
+              {:else if u.kind === 'floating'}
+                <small class="quiet">A newer image for tag <span class="mono-text">{tagOf(detail.image)}</span></small>
+                {#if u.current && u.latest && u.latest !== u.current}<small class="mono-text quiet">{short(u.current)} → {short(u.latest)}</small>{/if}
+              {/if}
             {:else}Up to date{/if}
             {#if u.checkedAt && u.checkedAt <= now + 300_000}<small class="quiet">checked {ago(u.checkedAt)}</small>{/if}
           </dd>
@@ -400,9 +427,10 @@
         </div>
       {/if}
       {#if buttons.length > 1}
-        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</p>
+        <p class="hint"><span class="k">↔</span>Choose<span class="k">OK</span>Select<button class="hint-button" onclick={back}><span class="k"><RemoteIcon name="back" /></span>{confirming ? 'Cancel' : 'Close'}</button></p>
       {:else}
-        <p class="hint">Read-only · <span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</p>
+        <!-- A tag, apart from the keys: this account can look but not restart (no restart service for it). -->
+        <p class="hint ro"><span class="tag" title="This account can’t restart containers">Read-only</span><button class="hint-button" onclick={back}><span class="k">OK</span> or <span class="k"><RemoteIcon name="back" /></span> closes</button></p>
       {/if}
     </aside>
   {/if}
@@ -417,6 +445,14 @@
   h1 { margin: 0; font-size: 2.4rem; font-weight: 600; letter-spacing: -0.02em; }
   .counts { margin: 0; font-size: 1.35rem; display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
   .count { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+  button.count { all: unset; display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; cursor: pointer; border-radius: 0.5rem; padding: 0.1rem 0.35rem; margin: 0 -0.35rem; }
+  button.count:hover { background: #1c2330; }
+  button.count.on { box-shadow: 0 0 0 0.15rem currentColor; }
+  button.count.off { opacity: 0.45; }
+  /* The remote's four coloured buttons, in the footer's key hint. */
+  .k.colours { gap: 0.2rem; padding: 0 0.45rem; }
+  .k.colours i { width: 0.55rem; height: 0.55rem; border-radius: 50%; }
+  .k.colours .red { background: #ff5b5b; } .k.colours .green { background: #3ddc84; } .k.colours .yellow { background: #ffc83d; } .k.colours .blue { background: #4d8dff; }
   .count :global(svg) { width: 1.35rem; height: 1.35rem; }
   .sep { color: var(--muted); }
   .updated { text-align: right; font-size: 1.35rem; }
@@ -466,6 +502,13 @@
        border-radius: 0.45rem; background: #222a38; color: #fff; font-weight: 700; font-size: 0.95rem; }
   footer .k:first-child { margin-left: 0; }
 
+  /* Everything left of the details: invisible, and only there to take a mouse click. */
+  .shade { all: unset; position: absolute; top: 0; left: 0; bottom: 0; right: 34rem; cursor: pointer; }
+  /* A hand over a card (it opens the details) and over the details' controls, for a mouse. */
+  .card, .detail button { cursor: pointer; }
+  .hint-button { all: unset; cursor: pointer; } .hint-button:hover { color: #fff; }
+  .hint.ro { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .tag { padding: 0.15rem 0.6rem; border-radius: 1rem; border: 1px solid #3a4456; color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .detail { position: absolute; top: 0; right: 0; bottom: 0; width: 34rem; padding: 1.6rem 2.4rem 1.2rem; overflow: hidden; background: #121722;
             box-shadow: -1.5rem 0 4rem rgba(0, 0, 0, 0.6), inset 0.42rem 0 0 var(--c); display: flex; flex-direction: column; gap: 0.9rem; }
   .head { display: flex; align-items: center; gap: 1rem; }
@@ -488,6 +531,7 @@
   .name.marked { padding-right: 1.3rem; }
   .versions { white-space: nowrap; }
   dd small { display: block; font-size: 1rem; margin-top: 0.1rem; }
+  dd small.mono-text { font-size: 0.95rem; }
   .about { margin: 0; font-size: 1.25rem; line-height: 1.35; color: #d5dae4; display: -webkit-box; -webkit-box-orient: vertical;
            -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex-shrink: 0; }
   /* History: status colours are the view's own (always beside a glyph and word in the legend);

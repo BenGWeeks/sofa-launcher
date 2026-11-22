@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { FILTER_FOR_BUTTON } from '@shared/containers';
   import RemoteIcon from './lib/RemoteIcon.svelte';
   import { onMount, tick } from 'svelte';
   import type { ActionContext, ActionEvent, TileState } from '@shared/types';
@@ -130,6 +131,11 @@
   }
 
   function onAction(e: ActionEvent) {
+    // The Docker view filters by the coloured buttons (main sends them here only while it is open).
+    if (screen === 'containers' && (e.action === 'cameraToggle' || e.action === 'cameraNext' || e.action === 'cameraCorner' || e.action === 'blue')) {
+      window.dispatchEvent(new CustomEvent('sofa-containers-filter', { detail: FILTER_FOR_BUTTON[e.action] }));
+      return;
+    }
     switch (e.action) {
       case 'cameraToggle':
         power = menu = false;

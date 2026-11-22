@@ -869,6 +869,8 @@ const sendAction = (e: ActionEvent) => {
 };
 
 let homeOverlayOpen = false;
+/** The Docker view is open on Home: the coloured buttons filter it rather than run screen-in-screen. */
+let containersViewOpen = false;
 function syncCameraOverlays(): void {
   cameraInputs?.suppressPinned(!!(homeOverlayOpen && win?.isVisible()) || panelOpen());
 }
@@ -1013,6 +1015,10 @@ async function onAction(action: GlobalAction): Promise<void> {
   }
   const state = { launcherInFront: launcherInFront(), panelOpen: panelOpen() };
   if (action !== 'info' && action !== 'back') guideReturnTo = null; // any other button abandons a guide opened over an app
+  if (containersViewOpen && state.launcherInFront && !state.panelOpen && ['cameraToggle', 'cameraNext', 'cameraCorner', 'blue'].includes(action)) {
+    win!.webContents.send('action', { action, context: 'home' } satisfies ActionEvent);
+    return;
+  }
   switch (action) {
     case 'cameraToggle':
       if (pip.state.active) { await pip.stop(); return toast('Screen-in-screen stopped'); }
@@ -1318,6 +1324,10 @@ function registerIpc(): void {
     writeBrowser(configPath, browser);
     await loadConfig();
     await pushApps();
+  });
+  handle('launcher:containersView', (e, open) => {
+    if (e.sender !== win?.webContents || typeof open !== 'boolean') throw new Error('Invalid containers view state');
+    containersViewOpen = open;
   });
   handle('launcher:overlay', (e, open) => {
     if (e.sender !== win?.webContents || typeof open !== 'boolean') throw new Error('Invalid overlay state');
